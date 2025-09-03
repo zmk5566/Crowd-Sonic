@@ -1,0 +1,20 @@
+audio:
+  sample_rate: 384000  # 384kHz for ultrasonic capture
+  channels: 1          # Mono capture
+  buffer_size: 1024    # Samples per buffer
+  device_name: null    # Auto-detect UAC device
+  
+processing:
+  fft_size: 2048       # FFT window size
+  overlap: 0.5         # Window overlap ratio
+  window_type: "hann"  # Window function
+  
+visualization:
+  update_rate: 30      # FPS for display updates
+  frequency_range: [0, 192000]  # Display range in Hz
+  colormap: "viridis"  # Matplotlib colormap
+  
+ui:
+  window_title: "Simple UAC Visualizer"
+  window_size: [1200, 800]
+  theme: "dark"

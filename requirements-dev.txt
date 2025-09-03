@@ -1,0 +1,12 @@
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Code quality
+black>=22.0.0
+isort>=5.10.0
+flake8>=5.0.0
+pylint>=2.15.0
+
+# Packaging
+pyinstaller>=5.0.0
