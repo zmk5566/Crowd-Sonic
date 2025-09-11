@@ -22,13 +22,15 @@ class FFTProcessor:
                  fft_size: int = 8192,
                  overlap: float = 0.75,
                  window_type: str = "hann",
-                 compression_level: int = 6):
+                 compression_level: int = 6,
+                 threshold_db: float = -100.0):
         
         self.sample_rate = sample_rate
         self.fft_size = fft_size
         self.overlap = overlap
         self.window_type = window_type
         self.compression_level = compression_level
+        self.threshold_db = threshold_db
         
         # 创建窗函数
         self.window = get_window(window_type, fft_size)
@@ -52,6 +54,7 @@ class FFTProcessor:
         logger.info(f"  采样率: {sample_rate} Hz")
         logger.info(f"  FFT大小: {fft_size}")
         logger.info(f"  窗函数: {window_type}")
+        logger.info(f"  dB阈值: {threshold_db} dB (低于此值将被忽略)")
         logger.info(f"  频率分辨率: {sample_rate/fft_size:.2f} Hz")
         logger.info(f"  Nyquist频率: {sample_rate/2/1000:.1f} kHz")
         logger.info(f"  输出频率点数: {len(self.freq_khz)}")
@@ -81,15 +84,15 @@ class FFTProcessor:
             # FFT
             fft_result = np.fft.rfft(windowed_data)
             
-            # FFT归一化和窗函数能量补偿
-            magnitude = np.abs(fft_result) / self.fft_size
-            magnitude *= 2.0  # Hann窗能量补偿
+            # 转换为dB - 使用与simple_ultrasonic.py相同的方法
+            # 直接从FFT结果计算，不使用功率谱
+            magnitude_db = 20 * np.log10(np.abs(fft_result) / self.fft_size + 1e-10)
             
-            # 计算功率谱密度
-            power_spectrum = magnitude ** 2
+            # 应用窗函数补偿
+            magnitude_db += 6.0  # Hann窗的能量补偿 (20*log10(2) ≈ 6dB)
             
-            # 转换为dB
-            magnitude_db = 10 * np.log10(np.maximum(power_spectrum, 1e-20))
+            # 应用dB阈值过滤 - 将低于阈值的值设为阈值
+            magnitude_db = np.maximum(magnitude_db, self.threshold_db)
             
             # 计算元数据
             metadata = self._calculate_metadata(magnitude_db, data)

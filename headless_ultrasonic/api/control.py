@@ -112,9 +112,11 @@ async def get_audio_config():
         raise HTTPException(status_code=503, detail="音频配置未初始化")
     return audio_config
 
-@router.post("/config/fps", response_model=ControlResponse)
-async def set_fps(fps: int):
-    """快速设置目标FPS"""
+# FPS端点已移动到 /api/config/fps (在api/config.py中)
+# 保留旧的端点作为兼容性支持，但使用query参数
+@router.post("/config/fps_legacy", response_model=ControlResponse)  
+async def set_fps_legacy(fps: int):
+    """快速设置目标FPS (遗留端点)"""
     if not (5 <= fps <= 60):
         raise HTTPException(status_code=400, detail="FPS必须在5-60之间")
     

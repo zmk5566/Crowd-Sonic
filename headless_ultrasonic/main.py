@@ -16,8 +16,10 @@ from config import Config
 from models import FFTFrame
 from core import AudioCapture, FFTProcessor, DataStreamer
 from api import stream_router, control_router
+from api.config import router as config_router
 from api.stream import set_data_streamer
 from api.control import set_components
+from api.config import set_config_components
 
 # 配置日志
 logging.basicConfig(
@@ -65,7 +67,8 @@ async def startup_event():
             fft_size=audio_config.fft_size,
             overlap=audio_config.overlap,
             window_type=audio_config.window_type,
-            compression_level=stream_config.compression_level
+            compression_level=stream_config.compression_level,
+            threshold_db=audio_config.threshold_db
         )
         
         data_streamer = DataStreamer(stream_config)
@@ -84,6 +87,7 @@ async def startup_event():
         # 设置API组件引用
         set_data_streamer(data_streamer)
         set_components(audio_capture, fft_processor, data_streamer, stream_config, audio_config)
+        set_config_components(audio_capture, fft_processor, data_streamer, stream_config, audio_config)
         
         # 启动数据处理任务
         processing_task = asyncio.create_task(data_processing_loop())
@@ -236,6 +240,7 @@ app.add_middleware(
 # 注册路由
 app.include_router(stream_router)
 app.include_router(control_router)
+app.include_router(config_router)
 
 # 根路径
 @app.get("/", response_class=HTMLResponse)
@@ -363,8 +368,24 @@ async def root():
                         <input type="range" id="fpsSlider" min="5" max="60" value="30" oninput="updateFPS(this.value)">
                         <span id="fpsValue">30</span>
                     </div>
+                    <div class="fps-selector">
+                        <label>dB阈值:</label>
+                        <input type="range" id="thresholdSlider" min="-120" max="-60" value="-100" oninput="updateThreshold(this.value)">
+                        <span id="thresholdValue">-100</span>dB
+                    </div>
+                    <div class="fps-selector">
+                        <label>压缩级别:</label>
+                        <input type="range" id="compressionSlider" min="1" max="9" value="6" oninput="updateCompression(this.value)">
+                        <span id="compressionValue">6</span>
+                    </div>
                     <button onclick="toggleVisualization()" id="vizBtn">开始可视化</button>
                     <button onclick="exportData()">导出数据</button>
+                    <hr style="margin: 10px 0;">
+                    <div style="font-size: 12px; margin-bottom: 5px;">快速预设:</div>
+                    <button onclick="applyPreset('balanced')" style="font-size: 11px; padding: 5px 8px;">平衡</button>
+                    <button onclick="applyPreset('low_noise')" style="font-size: 11px; padding: 5px 8px;">低噪</button>
+                    <button onclick="applyPreset('high_signal')" style="font-size: 11px; padding: 5px 8px;">强信号</button>
+                    <button onclick="applyPreset('performance')" style="font-size: 11px; padding: 5px 8px;">性能</button>
                     <div style="margin-top: 10px;">
                         <span>连接状态: </span>
                         <span id="connectionStatus" class="connection-status disconnected">未连接</span>
@@ -718,7 +739,9 @@ async def root():
                     
                     // 转换为画布坐标
                     const x = PADDING + (freq / MAX_FREQ_KHZ) * PLOT_WIDTH;
-                    const y = PADDING + PLOT_HEIGHT - ((db - MIN_DB) / (MAX_DB - MIN_DB)) * PLOT_HEIGHT;
+                    // 修复Y轴坐标计算 - 确保高dB值显示在顶部，低dB值显示在底部
+                    const normalizedDb = (db - MIN_DB) / (MAX_DB - MIN_DB); // 0-1范围
+                    const y = PADDING + (1 - normalizedDb) * PLOT_HEIGHT;
                     
                     if (firstPoint) {
                         ctx.moveTo(x, y);
@@ -738,7 +761,9 @@ async def root():
                     const freq = i * freqStep;
                     const db = fftData[i];
                     const x = PADDING + (freq / MAX_FREQ_KHZ) * PLOT_WIDTH;
-                    const y = PADDING + PLOT_HEIGHT - ((db - MIN_DB) / (MAX_DB - MIN_DB)) * PLOT_HEIGHT;
+                    // 修复Y轴坐标计算 - 确保高dB值显示在顶部，低dB值显示在底部
+                    const normalizedDb = (db - MIN_DB) / (MAX_DB - MIN_DB);
+                    const y = PADDING + (1 - normalizedDb) * PLOT_HEIGHT;
                     ctx.lineTo(x, y);
                 }
                 ctx.lineTo(PADDING + (maxFreqIndex * freqStep / MAX_FREQ_KHZ) * PLOT_WIDTH, PADDING + PLOT_HEIGHT);
@@ -751,7 +776,9 @@ async def root():
                     const peakFreq = peakIndex * freqStep;
                     const peakDb = fftData[peakIndex];
                     const peakX = PADDING + (peakFreq / MAX_FREQ_KHZ) * PLOT_WIDTH;
-                    const peakY = PADDING + PLOT_HEIGHT - ((peakDb - MIN_DB) / (MAX_DB - MIN_DB)) * PLOT_HEIGHT;
+                    // 修复峰值Y轴坐标计算
+                    const normalizedPeakDb = (peakDb - MIN_DB) / (MAX_DB - MIN_DB);
+                    const peakY = PADDING + (1 - normalizedPeakDb) * PLOT_HEIGHT;
                     
                     // 峰值点
                     ctx.fillStyle = '#ff4444';
@@ -833,8 +860,79 @@ async def root():
                 fetch('/api/config/fps', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(parseInt(value))
+                    body: JSON.stringify({target_fps: parseInt(value)})
+                }).then(response => {
+                    if (!response.ok) {
+                        addSystemLog(`FPS更新失败: ${response.status}`, 'error');
+                    } else {
+                        addSystemLog(`FPS已更新为: ${value}`, 'success');
+                    }
                 });
+            }
+
+            function updateThreshold(value) {
+                document.getElementById('thresholdValue').textContent = value;
+                fetch('/api/config/threshold', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        threshold_db: parseFloat(value),
+                        magnitude_threshold_db: parseFloat(value) + 20,
+                        similarity_threshold: 0.95
+                    })
+                }).then(response => {
+                    if (!response.ok) {
+                        addSystemLog(`阈值更新失败: ${response.status}`, 'error');
+                    } else {
+                        addSystemLog(`dB阈值已更新为: ${value}dB`, 'success');
+                    }
+                });
+            }
+
+            function updateCompression(value) {
+                document.getElementById('compressionValue').textContent = value;
+                fetch('/api/config/compression', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({compression_level: parseInt(value)})
+                }).then(response => {
+                    if (!response.ok) {
+                        addSystemLog(`压缩级别更新失败: ${response.status}`, 'error');
+                    } else {
+                        addSystemLog(`压缩级别已更新为: ${value}`, 'success');
+                    }
+                });
+            }
+
+            async function applyPreset(presetName) {
+                try {
+                    const response = await fetch(`/api/config/apply_preset/${presetName}`, {
+                        method: 'POST'
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        addSystemLog(`已应用预设: ${result.current_config.name}`, 'success');
+                        
+                        // 更新UI滑块值
+                        if (result.current_config.target_fps) {
+                            document.getElementById('fpsSlider').value = result.current_config.target_fps;
+                            document.getElementById('fpsValue').textContent = result.current_config.target_fps;
+                        }
+                        if (result.current_config.threshold_db) {
+                            document.getElementById('thresholdSlider').value = result.current_config.threshold_db;
+                            document.getElementById('thresholdValue').textContent = result.current_config.threshold_db;
+                        }
+                        if (result.current_config.compression_level) {
+                            document.getElementById('compressionSlider').value = result.current_config.compression_level;
+                            document.getElementById('compressionValue').textContent = result.current_config.compression_level;
+                        }
+                    } else {
+                        addSystemLog(`应用预设失败: ${response.status}`, 'error');
+                    }
+                } catch (e) {
+                    addSystemLog(`应用预设异常: ${e.message}`, 'error');
+                }
             }
             
             function exportData() {

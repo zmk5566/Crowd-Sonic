@@ -45,6 +45,7 @@ class AudioConfig(BaseModel):
     fft_size: int = 8192
     overlap: float = 0.75
     window_type: str = "hann"
+    threshold_db: float = -100.0      # dB阈值，低于此值将被忽略
 
 class SystemStatus(BaseModel):
     """系统状态"""

@@ -49,5 +49,6 @@ class Config:
             blocksize=int(os.getenv("BLOCKSIZE", "3840")),
             fft_size=int(os.getenv("FFT_SIZE", "8192")),
             overlap=float(os.getenv("OVERLAP", "0.75")),
-            window_type=os.getenv("WINDOW_TYPE", "hann")
+            window_type=os.getenv("WINDOW_TYPE", "hann"),
+            threshold_db=float(os.getenv("THRESHOLD_DB", "-100.0"))
         )
