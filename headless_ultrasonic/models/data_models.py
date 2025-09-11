@@ -57,6 +57,8 @@ class SystemStatus(BaseModel):
     uptime_seconds: float = 0.0
     audio_device_name: Optional[str] = None
     last_error: Optional[str] = None
+    device_disconnected: bool = False
+    callback_health: str = "unknown"
 
 class ControlResponse(BaseModel):
     """控制响应"""

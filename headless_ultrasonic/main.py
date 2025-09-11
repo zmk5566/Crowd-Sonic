@@ -808,12 +808,19 @@ async def root():
                 try {
                     const response = await fetch('/api/status');
                     const status = await response.json();
+                    // 检查设备断开状态
+                    const deviceStatus = status.device_disconnected ? '❌ 设备已断开' : 
+                                       status.callback_health === 'timeout' ? '⚠️ 设备无响应' :
+                                       status.is_running ? '🟢 设备正常' : '🔴 未运行';
+                    
                     document.getElementById('status').innerHTML = `
                         <div><strong>运行状态:</strong> ${status.is_running ? '🟢 运行中' : '🔴 已停止'}</div>
+                        <div><strong>设备状态:</strong> ${deviceStatus}</div>
                         <div><strong>音频设备:</strong> ${status.audio_device_name || '未知'}</div>
                         <div><strong>连接客户端:</strong> ${status.connected_clients}</div>
                         <div><strong>已发送帧数:</strong> ${status.total_frames_sent}</div>
                         <div><strong>运行时间:</strong> ${Math.round(status.uptime_seconds)}秒</div>
+                        ${status.last_error ? '<div style="color: #dc3545;"><strong>错误:</strong> ' + status.last_error + '</div>' : ''}
                     `;
                 } catch (e) {
                     addSystemLog('获取状态失败: ' + e.message, 'error');

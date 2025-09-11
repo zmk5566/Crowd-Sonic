@@ -44,6 +44,11 @@ class AudioCapture:
         self.start_time = None
         self.last_error = None
         
+        # 设备断开检测
+        self.last_callback_time = 0
+        self.callback_timeout = 2.0  # 2秒没有回调认为设备断开
+        self.device_disconnected = False
+        
     def add_callback(self, callback: Callable[[np.ndarray, float], None]):
         """添加音频数据回调函数
         
@@ -157,6 +162,11 @@ class AudioCapture:
                 
             if status:
                 logger.warning(f"音频回调状态: {status}")
+                # 检查是否是设备断开错误
+                if 'input underflow' in str(status).lower() or 'device' in str(status).lower():
+                    logger.error(f"疑似设备断开: {status}")
+                    self.device_disconnected = True
+                    return
                 
             try:
                 # 转换为float并归一化
@@ -165,6 +175,8 @@ class AudioCapture:
                 # 记录统计信息
                 self.frames_captured += 1
                 self.bytes_captured += len(audio_float) * 4  # float32 = 4 bytes
+                self.last_callback_time = time.time()  # 更新最后回调时间
+                self.device_disconnected = False  # 收到数据说明设备正常
                 
                 # 调用所有回调函数，传入时间戳
                 timestamp = time.time() * 1000  # 毫秒时间戳
@@ -187,8 +199,20 @@ class AudioCapture:
                 callback=audio_callback
             ):
                 logger.info("音频流已打开，开始采集数据...")
+                self.last_callback_time = time.time()
                 while not self._stop_event.wait(0.1):  # 100ms检查间隔
-                    pass
+                    # 检查设备是否长时间无响应
+                    if time.time() - self.last_callback_time > self.callback_timeout:
+                        self.device_disconnected = True
+                        self.last_error = "设备长时间无响应，可能已断开"
+                        logger.error(self.last_error)
+                        break
+                    
+                    # 检查设备断开标志
+                    if self.device_disconnected:
+                        self.last_error = "音频设备已断开"
+                        logger.error(self.last_error)
+                        break
                     
         except Exception as e:
             self.last_error = f"音频流错误: {e}"
@@ -206,7 +230,10 @@ class AudioCapture:
             "bytes_captured": self.bytes_captured,
             "uptime_seconds": uptime,
             "fps": self.frames_captured / uptime if uptime > 0 else 0,
-            "last_error": self.last_error
+            "last_error": self.last_error,
+            "device_disconnected": self.device_disconnected,
+            "last_callback_time": self.last_callback_time,
+            "callback_health": "healthy" if time.time() - self.last_callback_time < self.callback_timeout else "timeout"
         }
     
     def __del__(self):

@@ -46,7 +46,9 @@ async def get_system_status():
         total_bytes_sent=stream_stats.get("total_bytes_sent", 0),
         uptime_seconds=stream_stats.get("uptime_seconds", 0.0),
         audio_device_name=audio_stats.get("device_name"),
-        last_error=audio_stats.get("last_error")
+        last_error=audio_stats.get("last_error"),
+        device_disconnected=audio_stats.get("device_disconnected", False),
+        callback_health=audio_stats.get("callback_health", "unknown")
     )
 
 @router.post("/start", response_model=ControlResponse)
