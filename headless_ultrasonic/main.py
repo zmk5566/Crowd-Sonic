@@ -155,7 +155,7 @@ async def data_processing_loop():
             
             # 如果还不需要发送新帧，就不进行FFT处理
             if not should_send_time:
-                await asyncio.sleep(0.005)  # 5ms等待，减少CPU占用
+                await asyncio.sleep(0.001)  # 1ms等待，保持响应性
                 continue
             
             # 检查是否有足够数据处理FFT
@@ -209,9 +209,9 @@ async def data_processing_loop():
                 fps=0.0  # 将在data_streamer中更新
             )
             
-            # 广播到所有客户端
+            # 广播到所有客户端（传递时间戳以保持时序一致性）
             logger.debug(f"准备广播帧 #{sequence_id} 到客户端")
-            await data_streamer.broadcast_frame(fft_frame)
+            await data_streamer.broadcast_frame(fft_frame, current_time)
             logger.debug(f"广播完成帧 #{sequence_id}")
             
             # 小延迟避免CPU过载
@@ -401,7 +401,7 @@ async def root():
                     <canvas id="spectrumCanvas" width="800" height="350"></canvas>
                     <div style="margin-top: 10px; font-size: 12px; color: #666;">
                         <span>0 Hz</span>
-                        <span style="float: right;">100 kHz</span>
+                        <span style="float: right;">200 kHz</span>
                     </div>
                 </div>
                 
@@ -466,7 +466,7 @@ async def root():
             const PADDING = 40;
             const PLOT_WIDTH = CANVAS_WIDTH - 2 * PADDING;
             const PLOT_HEIGHT = CANVAS_HEIGHT - 2 * PADDING;
-            const MAX_FREQ_KHZ = 100;
+            const MAX_FREQ_KHZ = 200;
             const MIN_DB = -100;
             const MAX_DB = 0;
             

@@ -57,7 +57,7 @@ class DataStreamer:
         """获取连接的客户端数量"""
         return len(self.clients)
     
-    async def broadcast_frame(self, fft_frame: FFTFrame):
+    async def broadcast_frame(self, fft_frame: FFTFrame, frame_time: float = None):
         """广播FFT帧到所有客户端"""
         if not self.clients:
             return
@@ -66,8 +66,8 @@ class DataStreamer:
         self.sequence_id += 1
         fft_frame.sequence_id = self.sequence_id
         
-        # 更新FPS统计
-        current_time = time.time()
+        # 使用传入的时间戳或当前时间
+        current_time = frame_time if frame_time else time.time()
         self.fps_history.append(current_time)
         if len(self.fps_history) > 1:
             time_span = self.fps_history[-1] - self.fps_history[0]
