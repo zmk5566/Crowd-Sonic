@@ -31,7 +31,7 @@ class Config:
             min_fps=int(os.getenv("MIN_FPS", "5")),
             max_fps=int(os.getenv("MAX_FPS", "60")),
             magnitude_threshold_db=float(os.getenv("MAGNITUDE_THRESHOLD", "-80.0")),
-            enable_smart_skip=os.getenv("SMART_SKIP", "true").lower() == "true",
+            enable_smart_skip=os.getenv("SMART_SKIP", "false").lower() == "true",
             similarity_threshold=float(os.getenv("SIMILARITY_THRESHOLD", "0.95"))
         )
     

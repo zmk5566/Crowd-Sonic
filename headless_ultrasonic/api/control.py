@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from typing import Dict, Any
 import logging
 from models import StreamConfig, AudioConfig, SystemStatus, ControlResponse
+from core import DeviceIDManager
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["control"])
@@ -17,6 +18,9 @@ fft_processor = None
 data_streamer = None
 stream_config = None
 audio_config = None
+
+# 设备ID管理器
+device_id_manager = DeviceIDManager()
 
 def set_components(capture, processor, streamer, s_config, a_config):
     """设置全局组件引用"""
@@ -156,29 +160,204 @@ async def get_detailed_stats():
 
 @router.get("/devices")
 async def list_audio_devices():
-    """列出可用的音频设备"""
+    """列出可用的音频设备及其状态（使用稳定ID）"""
     try:
         import sounddevice as sd
         devices = sd.query_devices()
         
+        # 清理不存在的设备映射
+        device_id_manager.cleanup_missing_devices(devices)
+        
+        # 获取当前使用的设备信息
+        current_device_name = None
+        current_device_status = "unknown"
+        if audio_capture:
+            audio_stats = audio_capture.get_stats()
+            current_device_name = audio_stats.get("device_name")
+            if audio_stats.get("is_running"):
+                if audio_stats.get("device_disconnected"):
+                    current_device_status = "disconnected"
+                elif audio_stats.get("callback_health") == "timeout":
+                    current_device_status = "timeout"
+                else:
+                    current_device_status = "active"
+            else:
+                current_device_status = "inactive"
+        
         input_devices = []
         for i, device in enumerate(devices):
             if device['max_input_channels'] > 0:
+                # 生成或获取稳定ID
+                stable_id, system_index = device_id_manager.get_or_create_device_id(device, i)
+                
+                # 确定设备状态
+                device_status = "available"
+                is_current_device = False
+                
+                if current_device_name and device['name'] in current_device_name:
+                    is_current_device = True
+                    device_status = current_device_status
+                
+                # 尝试检测设备可用性
+                try:
+                    # 简单的设备可用性检查
+                    sd.check_input_settings(device=i, channels=1, samplerate=device['default_samplerate'])
+                except Exception:
+                    if not is_current_device:
+                        device_status = "unavailable"
+                
                 input_devices.append({
-                    "id": i,
+                    "id": stable_id,  # 使用稳定ID
+                    "system_index": i,  # 保留系统索引作为参考
                     "name": device['name'],
                     "max_channels": device['max_input_channels'],
                     "default_samplerate": device['default_samplerate'],
-                    "is_default": i == sd.default.device[0] if hasattr(sd.default, 'device') else False
+                    "is_default": i == sd.default.device[0] if hasattr(sd.default, 'device') else False,
+                    "is_current": is_current_device,
+                    "status": device_status
                 })
         
         return {
             "devices": input_devices,
+            "current_device": current_device_name,
+            "system_status": current_device_status,
+            "total_devices": len(input_devices),
+            "device_mapping_stats": device_id_manager.get_mapping_stats(),
             "timestamp": __import__('time').time() * 1000
         }
     except Exception as e:
         logger.error(f"获取音频设备列表失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取设备列表失败: {str(e)}")
+
+@router.get("/devices/{device_id}/status")
+async def get_device_status(device_id: str):
+    """获取指定设备的详细状态（支持稳定ID）"""
+    try:
+        import sounddevice as sd
+        devices = sd.query_devices()
+        
+        # 通过稳定ID找到设备
+        device_info_tuple = device_id_manager.get_device_by_stable_id(device_id, devices)
+        if not device_info_tuple:
+            raise HTTPException(status_code=404, detail=f"设备ID '{device_id}' 不存在或设备已断开")
+        
+        device, system_index = device_info_tuple
+        
+        # 检查设备是否支持输入
+        if device['max_input_channels'] == 0:
+            raise HTTPException(status_code=400, detail="该设备不支持音频输入")
+        
+        # 获取设备基本信息
+        device_info = {
+            "id": device_id,  # 稳定ID
+            "system_index": system_index,  # 系统索引
+            "name": device['name'],
+            "max_channels": device['max_input_channels'],
+            "default_samplerate": device['default_samplerate'],
+            "is_default": system_index == sd.default.device[0] if hasattr(sd.default, 'device') else False
+        }
+        
+        # 检查设备状态
+        device_status = "unknown"
+        is_current_device = False
+        current_device_stats = {}
+        
+        if audio_capture:
+            audio_stats = audio_capture.get_stats()
+            current_device_name = audio_stats.get("device_name", "")
+            
+            if device['name'] in current_device_name:
+                is_current_device = True
+                current_device_stats = audio_stats
+                
+                if audio_stats.get("is_running"):
+                    if audio_stats.get("device_disconnected"):
+                        device_status = "disconnected"
+                    elif audio_stats.get("callback_health") == "timeout":
+                        device_status = "timeout"
+                    else:
+                        device_status = "active"
+                else:
+                    device_status = "inactive"
+        
+        # 如果不是当前设备，尝试检测可用性
+        if not is_current_device:
+            try:
+                sd.check_input_settings(device=system_index, channels=1, samplerate=device['default_samplerate'])
+                device_status = "available"
+            except Exception as e:
+                device_status = "unavailable"
+                device_info["error"] = str(e)
+        
+        # 组装响应
+        response = {
+            "device": device_info,
+            "status": device_status,
+            "is_current": is_current_device,
+            "timestamp": __import__('time').time() * 1000
+        }
+        
+        # 如果是当前设备，添加详细统计信息
+        if is_current_device and current_device_stats:
+            response["stats"] = {
+                "is_running": current_device_stats.get("is_running", False),
+                "sample_rate": current_device_stats.get("sample_rate"),
+                "channels": current_device_stats.get("channels"),
+                "blocksize": current_device_stats.get("blocksize"),
+                "callback_count": current_device_stats.get("callback_count", 0),
+                "error_count": current_device_stats.get("error_count", 0),
+                "last_callback_time": current_device_stats.get("last_callback_time"),
+                "callback_health": current_device_stats.get("callback_health", "unknown"),
+                "device_disconnected": current_device_stats.get("device_disconnected", False),
+                "last_error": current_device_stats.get("last_error")
+            }
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取设备状态失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取设备状态失败: {str(e)}")
+
+@router.get("/devices/mapping/info")
+async def get_device_mapping_info():
+    """获取设备ID映射信息（用于调试和管理）"""
+    try:
+        return {
+            "mapping_info": device_id_manager.export_mapping(),
+            "timestamp": __import__('time').time() * 1000
+        }
+    except Exception as e:
+        logger.error(f"获取设备映射信息失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取映射信息失败: {str(e)}")
+
+@router.post("/devices/mapping/cleanup")
+async def cleanup_device_mapping():
+    """清理设备映射（移除不存在的设备）"""
+    try:
+        import sounddevice as sd
+        devices = sd.query_devices()
+        
+        # 获取清理前的统计
+        before_stats = device_id_manager.get_mapping_stats()
+        
+        # 执行清理
+        device_id_manager.cleanup_missing_devices(devices)
+        
+        # 获取清理后的统计
+        after_stats = device_id_manager.get_mapping_stats()
+        
+        return {
+            "message": "设备映射清理完成",
+            "before": before_stats,
+            "after": after_stats,
+            "removed_count": before_stats["total_mappings"] - after_stats["total_mappings"],
+            "timestamp": __import__('time').time() * 1000
+        }
+    except Exception as e:
+        logger.error(f"清理设备映射失败: {e}")
+        raise HTTPException(status_code=500, detail=f"清理映射失败: {str(e)}")
 
 @router.post("/test/compression")
 async def test_compression_performance():

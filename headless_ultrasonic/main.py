@@ -14,12 +14,19 @@ from fastapi.responses import HTMLResponse
 
 from config import Config
 from models import FFTFrame
-from core import AudioCapture, FFTProcessor, DataStreamer
+from core import (
+    AudioCapture, FFTProcessor, DataStreamer, 
+    DeviceIDManager, DeviceInstanceManager
+)
 from api import stream_router, control_router
 from api.config import router as config_router
+from api.device_control import router as device_control_router
+from api.system_control import router as system_control_router
 from api.stream import set_data_streamer
 from api.control import set_components
 from api.config import set_config_components
+from api.device_control import set_device_manager
+from api.system_control import set_device_manager as set_system_device_manager
 
 # 配置日志
 logging.basicConfig(
@@ -28,7 +35,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 全局组件
+# 全局组件 - 新架构
+device_id_manager = None
+device_instance_manager = None
+
+# 全局组件 - 旧架构（向后兼容）
 audio_capture = None
 fft_processor = None  
 data_streamer = None
@@ -49,19 +60,35 @@ async def lifespan(app: FastAPI):
 
 async def startup_event():
     """启动事件：初始化所有组件"""
+    global device_id_manager, device_instance_manager
     global audio_capture, fft_processor, data_streamer, stream_config, audio_config, processing_task
     
     logger.info("正在启动Headless超声波可视化器...")
     
     try:
-        # 加载配置
+        # 初始化新架构组件
+        logger.info("初始化设备管理系统...")
+        device_id_manager = DeviceIDManager()
+        device_instance_manager = DeviceInstanceManager(device_id_manager)
+        
+        # 启动设备实例管理器的监控任务
+        await device_instance_manager.start_monitoring()
+        
+        # 设置新架构API组件引用
+        set_device_manager(device_instance_manager)
+        set_system_device_manager(device_instance_manager)
+        
+        logger.info("新设备管理系统已初始化")
+        
+        # 初始化旧架构组件（向后兼容）
+        logger.info("初始化兼容模式组件...")
         stream_config = Config.get_stream_config()
         audio_config = Config.get_audio_config()
         
         logger.info(f"流配置: FPS={stream_config.target_fps}, 压缩级别={stream_config.compression_level}")
         logger.info(f"音频配置: 采样率={audio_config.sample_rate}Hz, FFT大小={audio_config.fft_size}")
         
-        # 初始化组件
+        # 初始化兼容性组件
         fft_processor = FFTProcessor(
             sample_rate=audio_config.sample_rate,
             fft_size=audio_config.fft_size,
@@ -84,22 +111,29 @@ async def startup_event():
         # 设置音频回调
         audio_capture.add_callback(audio_callback)
         
-        # 设置API组件引用
+        # 设置旧架构API组件引用
         set_data_streamer(data_streamer)
         set_components(audio_capture, fft_processor, data_streamer, stream_config, audio_config)
         set_config_components(audio_capture, fft_processor, data_streamer, stream_config, audio_config)
         
-        # 启动数据处理任务
+        # 启动数据处理任务（兼容模式）
         processing_task = asyncio.create_task(data_processing_loop())
         
         logger.info("所有组件初始化完成")
         logger.info(f"服务器将监听: http://{Config.HOST}:{Config.PORT}")
         logger.info("API端点:")
-        logger.info("  GET  /api/stream       - SSE数据流")
-        logger.info("  GET  /api/status       - 系统状态")  
-        logger.info("  POST /api/start        - 启动采集")
-        logger.info("  POST /api/stop         - 停止采集")
-        logger.info("  GET  /api/stream/test  - SSE连接测试")
+        logger.info("  === 新架构API ===")
+        logger.info("  GET  /api/system/status           - 系统整体状态")
+        logger.info("  GET  /api/system/devices          - 列出所有设备")
+        logger.info("  POST /api/devices/{id}/start      - 启动指定设备")
+        logger.info("  POST /api/devices/{id}/stop       - 停止指定设备")
+        logger.info("  GET  /api/devices/{id}/stream     - 设备专属SSE流")
+        logger.info("  GET  /api/devices/{id}/status     - 设备详细状态")
+        logger.info("  === 兼容API ===")
+        logger.info("  GET  /api/stream                  - SSE数据流")
+        logger.info("  GET  /api/status                  - 系统状态")  
+        logger.info("  POST /api/start                   - 启动采集")
+        logger.info("  POST /api/stop                    - 停止采集")
         
     except Exception as e:
         logger.error(f"启动失败: {e}")
@@ -107,12 +141,17 @@ async def startup_event():
 
 async def shutdown_event():
     """关闭事件：清理资源"""
-    global audio_capture, processing_task
+    global device_instance_manager, audio_capture, processing_task
     
     logger.info("正在关闭应用...")
     
     try:
-        # 停止音频采集
+        # 关闭新架构组件
+        if device_instance_manager:
+            await device_instance_manager.shutdown()
+            logger.info("设备实例管理器已关闭")
+        
+        # 停止旧架构组件（兼容模式）
         if audio_capture:
             audio_capture.stop()
         
@@ -240,6 +279,11 @@ app.add_middleware(
 )
 
 # 注册路由
+# 新架构API路由
+app.include_router(device_control_router)
+app.include_router(system_control_router)
+
+# 兼容性API路由
 app.include_router(stream_router)
 app.include_router(control_router)
 app.include_router(config_router)
@@ -247,12 +291,12 @@ app.include_router(config_router)
 # 根路径
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    """主页面 - 集成实时频谱可视化"""
+    """主页面 - 多设备选择和可视化界面"""
     return """
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Headless超声波可视化器</title>
+        <title>Headless超声波可视化器 - 多设备版</title>
         <meta charset="utf-8">
         <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js"></script>
         <style>
@@ -263,7 +307,7 @@ async def root():
                 color: #333;
             }
             .container { 
-                max-width: 1400px; margin: 0 auto; 
+                max-width: 1500px; margin: 0 auto; 
                 background: rgba(255,255,255,0.95); 
                 border-radius: 15px; padding: 30px; 
                 box-shadow: 0 10px 30px rgba(0,0,0,0.2);
@@ -274,6 +318,25 @@ async def root():
                 -webkit-background-clip: text; -webkit-text-fill-color: transparent;
                 background-clip: text; color: transparent;
             }
+            
+            /* 新增设备选择区域 */
+            .device-selection {
+                background: #e3f2fd; padding: 20px; border-radius: 10px; margin-bottom: 20px;
+                border-left: 5px solid #2196F3; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }
+            .device-dropdown {
+                width: 100%; padding: 12px; border: 2px solid #2196F3; border-radius: 8px;
+                font-size: 16px; background: white; margin: 10px 0;
+            }
+            .device-status {
+                display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px;
+                margin-left: 10px; font-weight: bold;
+            }
+            .status-running { background: #d4edda; color: #155724; }
+            .status-stopped { background: #f8d7da; color: #721c24; }
+            .status-available { background: #fff3cd; color: #856404; }
+            .status-unavailable { background: #e2e3e5; color: #6c757d; }
+            
             .controls-panel {
                 display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;
             }
@@ -349,17 +412,37 @@ async def root():
         <div class="container">
             <div class="header">
                 <h1>🎵 Headless超声波可视化器</h1>
-                <p>实时FFT频谱分析 | 基于FastAPI + SSE</p>
+                <p>实时FFT频谱分析 | 多设备支持 | 基于FastAPI + SSE</p>
+            </div>
+            
+            <!-- 设备选择区域 -->
+            <div class="device-selection">
+                <h3>🎤 设备选择</h3>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <label for="deviceSelect" style="font-weight: bold;">选择音频设备:</label>
+                    <select id="deviceSelect" class="device-dropdown" onchange="onDeviceChange()">
+                        <option value="">正在加载设备...</option>
+                    </select>
+                    <button onclick="refreshDevices()" style="padding: 8px 16px;">🔄 刷新</button>
+                </div>
+                <div id="deviceInfo" style="margin-top: 10px; font-size: 14px; color: #666;">
+                    请选择一个设备开始可视化
+                </div>
             </div>
             
             <div class="controls-panel">
                 <div class="status-card">
-                    <h3>🔊 系统状态</h3>
-                    <div id="status">正在加载...</div>
+                    <h3>🔊 设备控制</h3>
+                    <div id="deviceStatus">请先选择设备</div>
                     <div style="margin-top: 15px;">
-                        <button onclick="startSystem()" id="startBtn">启动系统</button>
-                        <button onclick="stopSystem()" id="stopBtn">停止系统</button>
-                        <button onclick="loadStatus()">刷新状态</button>
+                        <button onclick="startSelectedDevice()" id="startDeviceBtn" disabled>启动设备</button>
+                        <button onclick="stopSelectedDevice()" id="stopDeviceBtn" disabled>停止设备</button>
+                        <button onclick="restartSelectedDevice()" id="restartDeviceBtn" disabled>重启设备</button>
+                    </div>
+                    <hr style="margin: 15px 0;">
+                    <div style="font-size: 12px;">
+                        <div>系统状态: <span id="systemStatus">正在加载...</span></div>
+                        <div>运行设备: <span id="runningDevices">0</span>个</div>
                     </div>
                 </div>
                 
@@ -455,6 +538,11 @@ async def root():
             let lastDataTime = 0;
             let frameCount = 0;
             let totalBytesReceived = 0;
+            
+            // 设备管理变量
+            let availableDevices = [];
+            let selectedDeviceId = null;
+            let deviceStatuses = {};
             
             // 前端FPS计算
             let frontendFpsHistory = [];
@@ -604,14 +692,20 @@ async def root():
             
             // 启动可视化
             function startVisualization() {
+                if (!selectedDeviceId) {
+                    addSystemLog('请先选择设备', 'error');
+                    return;
+                }
+                
                 if (eventSource) {
                     stopVisualization();
                 }
                 
-                addSystemLog('正在连接FFT数据流...', 'info');
+                addSystemLog(`正在连接设备 ${selectedDeviceId} 的FFT数据流...`, 'info');
                 updateConnectionStatus('connecting');
                 
-                eventSource = new EventSource('/api/stream');
+                // 使用设备专属的数据流端点
+                eventSource = new EventSource(`/api/devices/${selectedDeviceId}/stream`);
                 
                 eventSource.onopen = function() {
                     addSystemLog('数据流连接成功', 'success');
@@ -806,22 +900,29 @@ async def root():
             // 其他功能函数
             async function loadStatus() {
                 try {
+                    // 获取系统状态（兼容模式）
                     const response = await fetch('/api/status');
                     const status = await response.json();
-                    // 检查设备断开状态
-                    const deviceStatus = status.device_disconnected ? '❌ 设备已断开' : 
-                                       status.callback_health === 'timeout' ? '⚠️ 设备无响应' :
-                                       status.is_running ? '🟢 设备正常' : '🔴 未运行';
                     
-                    document.getElementById('status').innerHTML = `
-                        <div><strong>运行状态:</strong> ${status.is_running ? '🟢 运行中' : '🔴 已停止'}</div>
-                        <div><strong>设备状态:</strong> ${deviceStatus}</div>
-                        <div><strong>音频设备:</strong> ${status.audio_device_name || '未知'}</div>
-                        <div><strong>连接客户端:</strong> ${status.connected_clients}</div>
-                        <div><strong>已发送帧数:</strong> ${status.total_frames_sent}</div>
-                        <div><strong>运行时间:</strong> ${Math.round(status.uptime_seconds)}秒</div>
-                        ${status.last_error ? '<div style="color: #dc3545;"><strong>错误:</strong> ' + status.last_error + '</div>' : ''}
-                    `;
+                    // 更新系统状态显示
+                    const systemStatusEl = document.getElementById('systemStatus');
+                    if (systemStatusEl) {
+                        const deviceStatus = status.device_disconnected ? '❌ 设备已断开' : 
+                                           status.callback_health === 'timeout' ? '⚠️ 设备无响应' :
+                                           status.is_running ? '🟢 正常' : '🔴 停止';
+                        systemStatusEl.textContent = deviceStatus;
+                    }
+                    
+                    // 获取多设备系统状态
+                    const systemResponse = await fetch('/api/system/status');
+                    const systemData = await systemResponse.json();
+                    
+                    const runningDevicesEl = document.getElementById('runningDevices');
+                    if (runningDevicesEl) {
+                        const runningCount = systemData.manager_stats.running_instances || 0;
+                        runningDevicesEl.textContent = runningCount;
+                    }
+                    
                 } catch (e) {
                     addSystemLog('获取状态失败: ' + e.message, 'error');
                 }
@@ -851,51 +952,88 @@ async def root():
             }
             
             function updateFPS(value) {
+                if (!selectedDeviceId) {
+                    addSystemLog('请先选择设备', 'error');
+                    return;
+                }
+                
                 document.getElementById('fpsValue').textContent = value;
-                fetch('/api/config/fps', {
+                
+                // 使用设备专属的API更新流配置
+                fetch(`/api/devices/${selectedDeviceId}/config/stream`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({target_fps: parseInt(value)})
+                    body: JSON.stringify({
+                        target_fps: parseInt(value),
+                        compression_level: parseInt(document.getElementById('compressionSlider').value || 6),
+                        enable_smart_skip: false // 保持智能跳帧禁用
+                    })
                 }).then(response => {
                     if (!response.ok) {
-                        addSystemLog(`FPS更新失败: ${response.status}`, 'error');
+                        addSystemLog(`设备 ${selectedDeviceId} FPS更新失败: ${response.status}`, 'error');
                     } else {
-                        addSystemLog(`FPS已更新为: ${value}`, 'success');
+                        addSystemLog(`设备 ${selectedDeviceId} FPS已更新为: ${value}`, 'success');
                     }
+                }).catch(e => {
+                    addSystemLog(`FPS更新异常: ${e.message}`, 'error');
                 });
             }
 
             function updateThreshold(value) {
+                if (!selectedDeviceId) {
+                    addSystemLog('请先选择设备', 'error');
+                    return;
+                }
+                
                 document.getElementById('thresholdValue').textContent = value;
-                fetch('/api/config/threshold', {
+                
+                // 使用设备专属的API更新流配置
+                fetch(`/api/devices/${selectedDeviceId}/config/stream`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        threshold_db: parseFloat(value),
-                        magnitude_threshold_db: parseFloat(value) + 20,
-                        similarity_threshold: 0.95
+                        target_fps: parseInt(document.getElementById('fpsSlider').value || 30),
+                        compression_level: parseInt(document.getElementById('compressionSlider').value || 6),
+                        magnitude_threshold_db: parseFloat(value),
+                        enable_smart_skip: false
                     })
                 }).then(response => {
                     if (!response.ok) {
-                        addSystemLog(`阈值更新失败: ${response.status}`, 'error');
+                        addSystemLog(`设备 ${selectedDeviceId} dB阈值更新失败: ${response.status}`, 'error');
                     } else {
-                        addSystemLog(`dB阈值已更新为: ${value}dB`, 'success');
+                        addSystemLog(`设备 ${selectedDeviceId} dB阈值已更新为: ${value}dB`, 'success');
                     }
+                }).catch(e => {
+                    addSystemLog(`dB阈值更新异常: ${e.message}`, 'error');
                 });
             }
 
             function updateCompression(value) {
+                if (!selectedDeviceId) {
+                    addSystemLog('请先选择设备', 'error');
+                    return;
+                }
+                
                 document.getElementById('compressionValue').textContent = value;
-                fetch('/api/config/compression', {
+                
+                // 使用设备专属的API更新流配置
+                fetch(`/api/devices/${selectedDeviceId}/config/stream`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({compression_level: parseInt(value)})
+                    body: JSON.stringify({
+                        target_fps: parseInt(document.getElementById('fpsSlider').value || 30),
+                        compression_level: parseInt(value),
+                        magnitude_threshold_db: parseFloat(document.getElementById('thresholdSlider').value || -100),
+                        enable_smart_skip: false
+                    })
                 }).then(response => {
                     if (!response.ok) {
-                        addSystemLog(`压缩级别更新失败: ${response.status}`, 'error');
+                        addSystemLog(`设备 ${selectedDeviceId} 压缩级别更新失败: ${response.status}`, 'error');
                     } else {
-                        addSystemLog(`压缩级别已更新为: ${value}`, 'success');
+                        addSystemLog(`设备 ${selectedDeviceId} 压缩级别已更新为: ${value}`, 'success');
                     }
+                }).catch(e => {
+                    addSystemLog(`压缩级别更新异常: ${e.message}`, 'error');
                 });
             }
 
@@ -945,9 +1083,207 @@ async def root():
                 a.click();
             }
             
+            // 设备管理函数
+            async function loadDevices() {
+                try {
+                    const response = await fetch('/api/system/devices');
+                    const data = await response.json();
+                    availableDevices = data.devices;
+                    
+                    const deviceSelect = document.getElementById('deviceSelect');
+                    deviceSelect.innerHTML = '<option value="">请选择设备...</option>';
+                    
+                    availableDevices.forEach(device => {
+                        const option = document.createElement('option');
+                        option.value = device.id;
+                        
+                        let statusText = '';
+                        if (device.instance_info && device.instance_info.exists) {
+                            statusText = ` [${device.instance_info.state}]`;
+                        } else {
+                            statusText = ` [${device.status}]`;
+                        }
+                        
+                        option.textContent = `${device.name}${statusText}`;
+                        deviceSelect.appendChild(option);
+                    });
+                    
+                    addSystemLog('设备列表已加载，共 ' + availableDevices.length + ' 个设备', 'success');
+                    updateSystemStatus(data);
+                    
+                } catch (e) {
+                    addSystemLog('加载设备列表失败: ' + e.message, 'error');
+                }
+            }
+            
+            async function refreshDevices() {
+                addSystemLog('正在刷新设备列表...', 'info');
+                await loadDevices();
+            }
+            
+            function onDeviceChange() {
+                const deviceSelect = document.getElementById('deviceSelect');
+                selectedDeviceId = deviceSelect.value;
+                
+                if (selectedDeviceId) {
+                    const device = availableDevices.find(d => d.id === selectedDeviceId);
+                    if (device) {
+                        updateDeviceInfo(device);
+                        enableDeviceControls();
+                        loadDeviceStatus(selectedDeviceId);
+                    }
+                } else {
+                    disableDeviceControls();
+                    document.getElementById('deviceInfo').textContent = '请选择一个设备开始可视化';
+                }
+            }
+            
+            function updateDeviceInfo(device) {
+                let statusClass = 'status-available';
+                let statusText = device.status;
+                
+                if (device.instance_info && device.instance_info.exists) {
+                    statusText = device.instance_info.state;
+                    switch (statusText) {
+                        case 'running': statusClass = 'status-running'; break;
+                        case 'stopped': statusClass = 'status-stopped'; break;
+                        case 'error': statusClass = 'status-unavailable'; break;
+                        default: statusClass = 'status-available';
+                    }
+                }
+                
+                document.getElementById('deviceInfo').innerHTML = `
+                    <strong>${device.name}</strong>
+                    <span class="device-status ${statusClass}">${statusText}</span><br>
+                    <small>通道: ${device.max_channels}, 采样率: ${device.default_samplerate} Hz, 系统索引: ${device.system_index}</small>
+                `;
+            }
+            
+            function enableDeviceControls() {
+                document.getElementById('startDeviceBtn').disabled = false;
+                document.getElementById('stopDeviceBtn').disabled = false;
+                document.getElementById('restartDeviceBtn').disabled = false;
+            }
+            
+            function disableDeviceControls() {
+                document.getElementById('startDeviceBtn').disabled = true;
+                document.getElementById('stopDeviceBtn').disabled = true;
+                document.getElementById('restartDeviceBtn').disabled = true;
+                document.getElementById('deviceStatus').textContent = '请先选择设备';
+            }
+            
+            async function loadDeviceStatus(deviceId) {
+                try {
+                    const response = await fetch(`/api/devices/${deviceId}/status`);
+                    const status = await response.json();
+                    
+                    if (status.instance_exists) {
+                        document.getElementById('deviceStatus').innerHTML = `
+                            <strong>状态:</strong> ${status.state}<br>
+                            <strong>设备:</strong> ${status.device_name}<br>
+                            <strong>运行时间:</strong> ${status.stats ? Math.round(status.stats.uptime_seconds) + '秒' : '未知'}
+                        `;
+                    } else {
+                        document.getElementById('deviceStatus').textContent = '设备未启动';
+                    }
+                } catch (e) {
+                    document.getElementById('deviceStatus').textContent = '获取状态失败: ' + e.message;
+                }
+            }
+            
+            function updateSystemStatus(data) {
+                const runningCount = data.devices.filter(d => 
+                    d.instance_info && d.instance_info.exists && d.instance_info.state === 'running'
+                ).length;
+                
+                document.getElementById('systemStatus').textContent = '正常';
+                document.getElementById('runningDevices').textContent = runningCount;
+            }
+            
+            // 设备控制函数
+            async function startSelectedDevice() {
+                if (!selectedDeviceId) {
+                    addSystemLog('请先选择设备', 'error');
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`/api/devices/${selectedDeviceId}/start`, {
+                        method: 'POST'
+                    });
+                    const result = await response.json();
+                    
+                    addSystemLog(`启动设备: ${result.message}`, result.status === 'success' ? 'success' : 'error');
+                    
+                    // 刷新设备状态
+                    await loadDeviceStatus(selectedDeviceId);
+                    await loadDevices();
+                    
+                } catch (e) {
+                    addSystemLog('启动设备失败: ' + e.message, 'error');
+                }
+            }
+            
+            async function stopSelectedDevice() {
+                if (!selectedDeviceId) {
+                    addSystemLog('请先选择设备', 'error');
+                    return;
+                }
+                
+                try {
+                    // 先停止可视化
+                    if (isVisualizationActive) {
+                        stopVisualization();
+                    }
+                    
+                    const response = await fetch(`/api/devices/${selectedDeviceId}/stop`, {
+                        method: 'POST'
+                    });
+                    const result = await response.json();
+                    
+                    addSystemLog(`停止设备: ${result.message}`, result.status === 'success' ? 'success' : 'error');
+                    
+                    // 刷新设备状态
+                    await loadDeviceStatus(selectedDeviceId);
+                    await loadDevices();
+                    
+                } catch (e) {
+                    addSystemLog('停止设备失败: ' + e.message, 'error');
+                }
+            }
+            
+            async function restartSelectedDevice() {
+                if (!selectedDeviceId) {
+                    addSystemLog('请先选择设备', 'error');
+                    return;
+                }
+                
+                try {
+                    // 先停止可视化
+                    if (isVisualizationActive) {
+                        stopVisualization();
+                    }
+                    
+                    const response = await fetch(`/api/devices/${selectedDeviceId}/restart`, {
+                        method: 'POST'
+                    });
+                    const result = await response.json();
+                    
+                    addSystemLog(`重启设备: ${result.message}`, result.status === 'success' ? 'success' : 'error');
+                    
+                    // 刷新设备状态
+                    await loadDeviceStatus(selectedDeviceId);
+                    await loadDevices();
+                    
+                } catch (e) {
+                    addSystemLog('重启设备失败: ' + e.message, 'error');
+                }
+            }
+            
             // 页面初始化
             document.addEventListener('DOMContentLoaded', function() {
                 initSpectrumCanvas();
+                loadDevices(); // 加载设备列表
                 loadStatus();
                 setInterval(loadStatus, 5000);
                 

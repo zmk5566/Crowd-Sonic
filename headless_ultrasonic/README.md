@@ -53,8 +53,40 @@ python run.py
 
 ## 📡 API端点
 
-### 控制API
+### 🆕 新架构API（每设备独立控制）
 
+#### 系统级控制API
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/system/status` | GET | 获取系统整体状态 |
+| `/api/system/devices` | GET | 列出所有设备（增强版） |
+| `/api/system/devices/refresh` | POST | 刷新设备列表 |
+| `/api/system/cleanup` | POST | 系统清理 |
+| `/api/system/stop-all` | POST | 停止所有设备 |
+| `/api/system/health` | GET | 系统健康检查 |
+| `/api/system/performance` | GET | 系统性能统计 |
+
+#### 每设备控制API
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/devices/{device_id}/start` | POST | 启动指定设备 |
+| `/api/devices/{device_id}/stop` | POST | 停止指定设备 |
+| `/api/devices/{device_id}/restart` | POST | 重启指定设备 |
+| `/api/devices/{device_id}/status` | GET | 获取设备详细状态 |
+| `/api/devices/{device_id}/stream` | GET | 设备专属SSE数据流 |
+| `/api/devices/{device_id}/config/stream` | GET/POST | 获取/设置设备流配置 |
+| `/api/devices/{device_id}/config/audio` | GET/POST | 获取/设置设备音频配置 |
+| `/api/devices/{device_id}` | DELETE | 移除设备实例 |
+
+#### 批量操作API
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/devices/batch/start` | POST | 批量启动设备 |
+| `/api/devices/batch/stop` | POST | 批量停止设备 |
+
+### 🔄 兼容性API（向后兼容）
+
+#### 传统控制API
 | 端点 | 方法 | 说明 |
 |------|------|------|
 | `/api/status` | GET | 获取系统状态 |
@@ -62,19 +94,110 @@ python run.py
 | `/api/stop` | POST | 停止音频采集 |
 | `/api/config/stream` | GET/POST | 获取/设置流配置 |
 | `/api/config/fps` | POST | 快速设置FPS |
-| `/api/devices` | GET | 列出音频设备 |
+| `/api/devices` | GET | 列出音频设备及状态（使用稳定ID） |
+| `/api/devices/{device_id}/status` | GET | 获取指定设备详细状态（支持稳定ID） |
+| `/api/devices/mapping/info` | GET | 获取设备ID映射信息 |
+| `/api/devices/mapping/cleanup` | POST | 清理无效的设备映射 |
 
-### 数据流API
-
+#### 数据流API
 | 端点 | 方法 | 说明 |
 |------|------|------|
 | `/api/stream` | GET | SSE实时FFT数据流 |
 | `/api/stream/test` | GET | SSE连接测试 |
 | `/api/stream/stats` | GET | 流传输统计 |
 
+## 🎯 稳定设备ID系统
+
+为了解决设备索引变化的问题，系统采用了稳定的设备ID机制：
+
+### 特性
+- **持久化映射**: 设备ID映射保存到本地文件 `device_mapping.json`
+- **智能生成**: 基于设备名称+硬件特征生成友好的稳定ID
+- **自动清理**: 自动清理不存在的设备映射
+- **向后兼容**: 保留系统索引作为参考
+
+### ID格式示例
+```
+ultramicfefe12_a1b2c3  # UltraMic设备，基于硬件特征生成
+builtinmic_d4e5f6      # 内置麦克风
+usbheadset_g7h8i9      # USB耳机
+```
+
+### 映射文件位置
+```
+headless_ultrasonic/core/device_mapping.json
+```
+
 ## 🔧 使用示例
 
-### 1. 控制系统
+### 1. 新架构API使用
+
+#### 系统管理
+```bash
+# 获取系统整体状态
+curl http://localhost:8380/api/system/status
+
+# 列出所有设备（增强版）
+curl http://localhost:8380/api/system/devices
+
+# 刷新设备列表
+curl -X POST http://localhost:8380/api/system/devices/refresh
+
+# 系统健康检查
+curl http://localhost:8380/api/system/health
+
+# 停止所有设备
+curl -X POST http://localhost:8380/api/system/stop-all
+```
+
+#### 单设备控制
+```bash
+# 启动指定设备（使用稳定ID）
+curl -X POST http://localhost:8380/api/devices/ultramicfefe12_abc123/start
+
+# 获取设备详细状态
+curl http://localhost:8380/api/devices/ultramicfefe12_abc123/status
+
+# 停止指定设备
+curl -X POST http://localhost:8380/api/devices/ultramicfefe12_abc123/stop
+
+# 重启设备
+curl -X POST http://localhost:8380/api/devices/ultramicfefe12_abc123/restart
+
+# 连接到设备专属数据流
+curl http://localhost:8380/api/devices/ultramicfefe12_abc123/stream
+```
+
+#### 设备配置管理
+```bash
+# 更新设备流配置
+curl -X POST http://localhost:8380/api/devices/ultramicfefe12_abc123/config/stream \
+  -H "Content-Type: application/json" \
+  -d '{"target_fps": 60, "compression_level": 9}'
+
+# 获取设备流配置
+curl http://localhost:8380/api/devices/ultramicfefe12_abc123/config/stream
+
+# 更新设备音频配置
+curl -X POST http://localhost:8380/api/devices/ultramicfefe12_abc123/config/audio \
+  -H "Content-Type: application/json" \
+  -d '{"sample_rate": 384000, "fft_size": 8192}'
+```
+
+#### 批量操作
+```bash
+# 批量启动多个设备
+curl -X POST http://localhost:8380/api/devices/batch/start \
+  -H "Content-Type: application/json" \
+  -d '["ultramicfefe12_abc123", "builtinmic_d4e5f6"]'
+
+# 批量停止多个设备
+curl -X POST http://localhost:8380/api/devices/batch/stop \
+  -H "Content-Type: application/json" \
+  -d '["ultramicfefe12_abc123", "builtinmic_d4e5f6"]'
+```
+
+### 2. 兼容API使用（向后兼容）
 
 ```bash
 # 启动音频采集
@@ -90,12 +213,80 @@ curl -X POST http://localhost:8380/api/config/fps \
 
 # 停止采集
 curl -X POST http://localhost:8380/api/stop
+
+# 列出所有音频设备及状态（返回稳定ID）
+curl http://localhost:8380/api/devices
+
+# 获取指定设备的详细状态（使用稳定ID）
+curl http://localhost:8380/api/devices/ultramicfefe12_abc123/status
+
+# 查看设备ID映射信息
+curl http://localhost:8380/api/devices/mapping/info
+
+# 清理无效的设备映射
+curl -X POST http://localhost:8380/api/devices/mapping/cleanup
 ```
 
-### 2. 前端SSE连接
+### 3. 前端SSE连接
 
+#### 新架构：连接到特定设备
 ```javascript
-// 连接SSE数据流
+// 连接到指定设备的数据流
+const deviceId = 'ultramicfefe12_abc123';
+const eventSource = new EventSource(`http://localhost:8380/api/devices/${deviceId}/stream`);
+
+eventSource.onmessage = function(event) {
+    const fftFrame = JSON.parse(event.data);
+    
+    console.log(`设备 ${deviceId} 数据:`);
+    console.log('时间戳:', fftFrame.timestamp);
+    console.log('序列号:', fftFrame.sequence_id);
+    console.log('采样率:', fftFrame.sample_rate);
+    console.log('峰值频率:', fftFrame.peak_frequency_hz);
+    console.log('声压级:', fftFrame.spl_db);
+    
+    // 解压缩FFT数据
+    const compressedData = fftFrame.data_compressed;
+    // 需要使用pako或其他库解压缩gzip数据
+};
+
+eventSource.onerror = function(event) {
+    console.error(`设备 ${deviceId} SSE连接错误:`, event);
+};
+```
+
+#### 多设备同时连接
+```javascript
+// 同时连接多个设备的数据流
+const devices = ['ultramicfefe12_abc123', 'builtinmic_d4e5f6'];
+const eventSources = {};
+
+devices.forEach(deviceId => {
+    const eventSource = new EventSource(`http://localhost:8380/api/devices/${deviceId}/stream`);
+    eventSources[deviceId] = eventSource;
+    
+    eventSource.onmessage = function(event) {
+        const fftFrame = JSON.parse(event.data);
+        console.log(`设备 ${deviceId}:`, fftFrame.peak_frequency_hz, 'Hz');
+        
+        // 处理设备专属数据
+        processDeviceData(deviceId, fftFrame);
+    };
+    
+    eventSource.onerror = function(event) {
+        console.error(`设备 ${deviceId} 连接错误:`, event);
+    };
+});
+
+// 关闭所有连接
+function closeAllConnections() {
+    Object.values(eventSources).forEach(es => es.close());
+}
+```
+
+#### 兼容模式：连接到全局数据流
+```javascript
+// 连接SSE数据流（兼容模式）
 const eventSource = new EventSource('http://localhost:8380/api/stream');
 
 eventSource.onmessage = function(event) {
@@ -181,6 +372,34 @@ eventSource.onerror = function(event) {
 4. **数据压缩/解压错误**
    - 前端需要pako.js或类似库解压gzip数据
    - 检查Base64解码是否正确
+
+5. **🆕 FFT数据流不更新（最常见问题）**
+   - **症状**：设备启动成功，SSE连接正常，但前端看不到频谱数据更新
+   - **原因**：智能跳帧功能在安静环境中会跳过所有帧
+   - **解决方案**：
+     ```bash
+     # 方法1: 禁用智能跳帧（推荐）
+     export SMART_SKIP=false
+     
+     # 方法2: 调整幅度阈值
+     export MAGNITUDE_THRESHOLD=-120.0
+     
+     # 方法3: 通过API动态配置
+     curl -X POST http://localhost:8380/api/config/stream \
+       -H "Content-Type: application/json" \
+       -d '{"enable_smart_skip": false}'
+     ```
+   - **验证修复**：
+     ```bash
+     # 测试数据流是否正常
+     curl -N http://localhost:8380/api/devices/{device_id}/stream | head -n 5
+     # 应该看到sequence_id递增的JSON数据
+     ```
+
+6. **设备启动但无音频数据**
+   - 检查设备权限（麦克风访问权限）
+   - 验证设备是否被其他应用占用
+   - 检查采样率是否与设备兼容
 
 ### 调试方法
 

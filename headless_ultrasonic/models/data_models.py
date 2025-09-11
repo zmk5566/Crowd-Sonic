@@ -32,7 +32,7 @@ class StreamConfig(BaseModel):
     min_fps: int = 5                  # 最小帧率
     max_fps: int = 60                 # 最大帧率
     magnitude_threshold_db: float = -80.0  # 幅度阈值，低于此值不发送
-    enable_smart_skip: bool = True    # 智能跳帧（相似帧跳过）
+    enable_smart_skip: bool = False   # 智能跳帧（相似帧跳过）- 默认禁用以确保在安静环境中也能看到数据
     similarity_threshold: float = 0.95 # 相似度阈值
 
 class AudioConfig(BaseModel):
