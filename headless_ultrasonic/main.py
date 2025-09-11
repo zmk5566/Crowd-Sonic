@@ -641,9 +641,16 @@ async def root():
                         const currentTime = performance.now();
                         if (lastFrontendFrameTime > 0) {
                             const timeDiff = currentTime - lastFrontendFrameTime;
-                            frontendFpsHistory.push(1000 / timeDiff); // 转换为FPS
-                            if (frontendFpsHistory.length > 30) {
-                                frontendFpsHistory.shift(); // 保持最近30帧的记录
+                            // 只有时间差大于5ms才计算FPS，避免异常高值
+                            if (timeDiff >= 5) {
+                                const fps = 1000 / timeDiff;
+                                // 限制FPS在合理范围内 (5-200)
+                                if (fps >= 5 && fps <= 200) {
+                                    frontendFpsHistory.push(fps);
+                                }
+                            }
+                            if (frontendFpsHistory.length > 60) {
+                                frontendFpsHistory.shift(); // 保持最近60帧的记录
                             }
                         }
                         lastFrontendFrameTime = currentTime;
