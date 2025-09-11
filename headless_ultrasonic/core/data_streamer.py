@@ -41,7 +41,7 @@ class DataStreamer:
         """添加客户端"""
         if client_id not in self.clients:
             self.clients.add(client_id)
-            self.client_queues[client_id] = asyncio.Queue(maxsize=10)  # 限制队列大小防止内存泄漏
+            self.client_queues[client_id] = asyncio.Queue(maxsize=120)  # 支持60FPS*2秒缓冲，防止帧丢失
             logger.info(f"客户端连接: {client_id} (总数: {len(self.clients)})")
         return self.client_queues[client_id]
     

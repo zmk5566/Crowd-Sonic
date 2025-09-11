@@ -75,8 +75,16 @@ class FFTProcessor:
         start_time = time.time()
         
         try:
-            # 获取最新的FFT大小的数据
-            data = np.array(list(self.audio_buffer)[-self.fft_size:])
+            # 计算步长（考虑重叠）
+            hop_size = int(self.fft_size * (1 - self.overlap))
+            
+            # 获取FFT大小的数据从缓冲区开头
+            data = np.array(list(self.audio_buffer)[:self.fft_size])
+            
+            # 移除已处理的数据（移除hop_size个样本以实现重叠）
+            for _ in range(hop_size):
+                if len(self.audio_buffer) > 0:
+                    self.audio_buffer.popleft()
             
             # 应用窗函数
             windowed_data = data * self.window

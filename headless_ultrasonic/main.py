@@ -149,6 +149,15 @@ async def data_processing_loop():
                 buffer_stats = fft_processor.get_stats()
                 logger.debug(f"处理循环 #{loop_count}: 缓冲区大小={buffer_stats['buffer_size']}, 可处理={buffer_stats['buffer_ready']}")
             
+            # 先检查是否需要发送新帧
+            current_time = time.time()
+            should_send_time = data_streamer.should_send_frame(current_time)
+            
+            # 如果还不需要发送新帧，就不进行FFT处理
+            if not should_send_time:
+                await asyncio.sleep(0.005)  # 5ms等待，减少CPU占用
+                continue
+            
             # 检查是否有足够数据处理FFT
             if not fft_processor.can_process():
                 await asyncio.sleep(0.001)  # 1ms等待
@@ -164,13 +173,6 @@ async def data_processing_loop():
             logger.debug(f"FFT处理完成，数据长度={len(result[0])}")
                 
             magnitude_db, metadata = result
-            
-            # 检查是否应该发送帧
-            current_time = time.time()
-            should_send_time = data_streamer.should_send_frame(current_time)
-            logger.debug(f"时间检查: 应该发送={should_send_time}")
-            if not should_send_time:
-                continue
                 
             # 智能跳帧检查 - 临时禁用以测试数据流
             should_send_smart = True
@@ -408,7 +410,7 @@ async def root():
                     <div class="metric-grid" id="metricsGrid">
                         <div class="metric-item">
                             <div class="metric-value" id="currentFPS">--</div>
-                            <div class="metric-label">当前FPS</div>
+                            <div class="metric-label">后端FPS (前端FPS)</div>
                         </div>
                         <div class="metric-item">
                             <div class="metric-value" id="peakFreq">--</div>
@@ -453,6 +455,10 @@ async def root():
             let lastDataTime = 0;
             let frameCount = 0;
             let totalBytesReceived = 0;
+            
+            // 前端FPS计算
+            let frontendFpsHistory = [];
+            let lastFrontendFrameTime = 0;
             
             // 频谱显示参数
             const CANVAS_WIDTH = 800;
@@ -571,31 +577,16 @@ async def root():
                 }[status];
             }
             
-            // 解压缩FFT数据
+            // 解压缩FFT数据 (优化性能版本)
             function decompressFFTData(compressedData) {
                 try {
-                    console.log('🗜️ 解压缩输入:', {
-                        compressedLength: compressedData.length,
-                        firstChars: compressedData.substring(0, 20),
-                        hasPako: typeof pako !== 'undefined'
-                    });
-                    
                     const binaryString = atob(compressedData);
-                    console.log('📝 Base64解码完成, 长度:', binaryString.length);
-                    
                     const bytes = new Uint8Array(binaryString.length);
                     for (let i = 0; i < binaryString.length; i++) {
                         bytes[i] = binaryString.charCodeAt(i);
                     }
-                    console.log('📦 字节数组创建完成, 长度:', bytes.length);
-                    
                     const decompressed = pako.inflate(bytes);
-                    console.log('🔓 Gzip解压完成, 长度:', decompressed.length);
-                    
-                    const float32Array = new Float32Array(decompressed.buffer);
-                    console.log('🔢 Float32数组创建完成, 长度:', float32Array.length);
-                    
-                    return float32Array;
+                    return new Float32Array(decompressed.buffer);
                 } catch (e) {
                     console.error('❌ 解压缩失败:', e);
                     return null;
@@ -633,32 +624,34 @@ async def root():
                 eventSource.onmessage = function(event) {
                     try {
                         const fftFrame = JSON.parse(event.data);
-                        console.log('📡 收到SSE数据:', fftFrame);
                         
                         // 跳过非FFT数据
                         if (!fftFrame.data_compressed || fftFrame.type) {
-                            console.log('⏭️ 跳过非FFT数据:', {
-                                hasCompressed: !!fftFrame.data_compressed,
-                                type: fftFrame.type
-                            });
                             return;
                         }
                         
-                        console.log('🗜️ 开始解压缩数据...');
-                        // 解压缩FFT数据
+                        // 解压缩FFT数据 (移除调试日志提高性能)
                         const fftData = decompressFFTData(fftFrame.data_compressed);
                         if (!fftData) {
                             console.error('❌ 解压缩失败');
                             return;
                         }
-                        console.log('✅ 解压缩成功, FFT数据长度:', fftData.length);
+                        
+                        // 计算前端接收FPS
+                        const currentTime = performance.now();
+                        if (lastFrontendFrameTime > 0) {
+                            const timeDiff = currentTime - lastFrontendFrameTime;
+                            frontendFpsHistory.push(1000 / timeDiff); // 转换为FPS
+                            if (frontendFpsHistory.length > 30) {
+                                frontendFpsHistory.shift(); // 保持最近30帧的记录
+                            }
+                        }
+                        lastFrontendFrameTime = currentTime;
                         
                         // 绘制频谱
-                        console.log('🎨 开始绘制频谱...');
                         drawSpectrum(fftData, fftFrame.sample_rate, fftFrame.fft_size);
-                        console.log('✅ 频谱绘制完成');
                         
-                        // 更新指标
+                        // 更新指标（包含前端FPS）
                         updateMetrics(fftFrame);
                         
                         // 更新统计
@@ -695,19 +688,9 @@ async def root():
                 addSystemLog('数据流已断开', 'info');
             }
             
-            // 绘制频谱数据
+            // 绘制频谱数据 (优化性能版本)
             function drawSpectrum(fftData, sampleRate, fftSize) {
-                console.log('🎨 drawSpectrum 开始:', {
-                    hasCtx: !!ctx,
-                    dataLength: fftData.length,
-                    sampleRate: sampleRate,
-                    fftSize: fftSize
-                });
-                
-                if (!ctx) {
-                    console.error('❌ Canvas context 不存在');
-                    return;
-                }
+                if (!ctx) return;
                 
                 // 重绘背景
                 drawBackground();
@@ -716,16 +699,7 @@ async def root():
                 const freqStep = sampleRate / fftSize / 1000; // kHz
                 const maxFreqIndex = Math.min(fftData.length, Math.floor(MAX_FREQ_KHZ / freqStep));
                 
-                console.log('📊 频谱计算:', {
-                    freqStep: freqStep,
-                    maxFreqIndex: maxFreqIndex,
-                    MAX_FREQ_KHZ: MAX_FREQ_KHZ
-                });
-                
-                if (maxFreqIndex < 2) {
-                    console.warn('⚠️ maxFreqIndex太小:', maxFreqIndex);
-                    return;
-                }
+                if (maxFreqIndex < 2) return;
                 
                 // 绘制频谱线
                 ctx.strokeStyle = '#00ff88';
@@ -796,7 +770,14 @@ async def root():
             
             // 更新指标显示
             function updateMetrics(fftFrame) {
-                document.getElementById('currentFPS').textContent = fftFrame.fps.toFixed(1);
+                // 计算前端平均FPS
+                const avgFrontendFps = frontendFpsHistory.length > 0 
+                    ? frontendFpsHistory.reduce((a, b) => a + b, 0) / frontendFpsHistory.length 
+                    : 0;
+                
+                // 显示后端FPS vs 前端FPS
+                document.getElementById('currentFPS').textContent = 
+                    `${fftFrame.fps.toFixed(1)} (${avgFrontendFps.toFixed(1)})`;
                 document.getElementById('peakFreq').textContent = (fftFrame.peak_frequency_hz / 1000).toFixed(1);
                 document.getElementById('peakMag').textContent = fftFrame.peak_magnitude_db.toFixed(1);
                 document.getElementById('splLevel').textContent = fftFrame.spl_db.toFixed(1);
