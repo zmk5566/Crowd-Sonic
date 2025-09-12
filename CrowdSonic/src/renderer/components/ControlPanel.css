@@ -10,7 +10,7 @@
 }
 
 .control-panel.collapsed {
-  height: 40px; /* Just enough for the toggle button */
+  height: 36px; /* Just enough for the toggle button */
 }
 
 .collapse-toggle {
@@ -59,12 +59,13 @@
   flex-shrink: 0;
 }
 
-.control-section h3 {
-  font-size: var(--font-size-lg);
+.control-section h4 {
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
-  margin: 0;
-  padding-bottom: var(--spacing-sm);
-  border-bottom: 1px solid var(--border-color);
+  margin: 0 0 var(--spacing-xs) 0;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 /* Connection Section */

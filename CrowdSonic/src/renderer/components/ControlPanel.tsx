@@ -19,8 +19,6 @@ interface ControlPanelProps {
   apiClient: APIClient;
   onPlay: () => void;
   onBaseUrlChange: (url: string) => void;
-  onFrequencyToggle: (show: boolean) => void;
-  onSpectrogramToggle: (show: boolean) => void;
   onTestConnection: () => void;
   onDeviceChange?: (deviceId: string) => void;
   onFpsChange?: (fps: number) => void;
@@ -37,8 +35,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   apiClient,
   onPlay,
   onBaseUrlChange,
-  onFrequencyToggle,
-  onSpectrogramToggle,
   onTestConnection,
   onDeviceChange,
   onFpsChange,
@@ -203,15 +199,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       {/* Control Panel Content */}
       <div className={`control-content ${isCollapsed ? 'hidden' : ''}`}>
         <div className="control-section">
-          <h3>Connection</h3>
-          
           <div className="connection-status">
             <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}></div>
             <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
           </div>
 
-          <form onSubmit={handleUrlSubmit} className="url-form">
-            <label htmlFor="base-url">Backend URL:</label>
+          <form onSubmit={handleUrlSubmit} className="url-form compact">
             <input
               id="base-url"
               type="url"
@@ -229,8 +222,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       {/* Audio Device Selection */}
       {isConnected && (
         <div className="control-section">
-          <h3>Audio Device</h3>
-          
           <div className="device-selection">
             <select
               value={selectedDevice}
@@ -297,7 +288,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       )}
 
       <div className="control-section">
-        <h3>Visualization Stream</h3>
+        <h4>Stream</h4>
         
         <div className="stream-controls">
           <button
@@ -311,68 +302,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
       </div>
 
-      <div className="control-section">
-        <h3>Display</h3>
-        
-        <div className="display-options">
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={showFrequency}
-              onChange={(e) => onFrequencyToggle(e.target.checked)}
-            />
-            <span>Frequency Spectrum</span>
-          </label>
-          
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={showSpectrogram}
-              onChange={(e) => onSpectrogramToggle(e.target.checked)}
-            />
-            <span>Spectrogram</span>
-          </label>
-        </div>
-      </div>
-
-      <div className="control-section">
-        <h3>Settings</h3>
-        
-        {isConnected && (
-          <div className="settings-controls">
-            <div className="setting-item">
-              <label htmlFor="fps-slider">Target FPS: {targetFps}</label>
-              <input
-                id="fps-slider"
-                type="range"
-                min="5"
-                max="60"
-                step="5"
-                value={targetFps}
-                onChange={(e) => handleFpsChange(parseInt(e.target.value))}
-                disabled={isPlaying}
-              />
-              <div className="fps-presets">
-                {[15, 30, 60].map(fps => (
-                  <button
-                    key={fps}
-                    onClick={() => handleFpsChange(fps)}
-                    disabled={isPlaying}
-                    className={targetFps === fps ? 'active' : ''}
-                  >
-                    {fps}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-        
-        <div className="settings-info">
-          <p>Platform: {window.electronAPI?.platform || 'Unknown'}</p>
-          <p>Version: {window.electronAPI?.version || 'Unknown'}</p>
-        </div>
-      </div>
       </div>
     </div>
   );

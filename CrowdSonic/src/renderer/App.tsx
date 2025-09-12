@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Layout } from './components/Layout';
 import { ControlPanel } from './components/ControlPanel';
+import { SettingsPanel } from './components/SettingsPanel';
 import { CanvasViewport } from './components/CanvasViewport';
 import { StatusBar } from './components/StatusBar';
 import { APIClient } from './services/api';
@@ -94,8 +95,6 @@ const App: React.FC = () => {
         apiClient={apiClient}
         onPlay={handlePlay}
         onBaseUrlChange={handleBaseUrlChange}
-        onFrequencyToggle={setShowFrequency}
-        onSpectrogramToggle={setShowSpectrogram}
         onTestConnection={testConnection}
         onDeviceChange={handleDeviceChange}
         onFpsChange={handleFpsChange}
@@ -125,6 +124,18 @@ const App: React.FC = () => {
           dataRate={statusData.dataRate}
         />
       </div>
+
+      {/* Settings Panel - Fixed position bottom right */}
+      <SettingsPanel
+        showFrequency={showFrequency}
+        showSpectrogram={showSpectrogram}
+        targetFps={targetFps}
+        isConnected={isConnected}
+        isPlaying={isPlaying}
+        onFrequencyToggle={setShowFrequency}
+        onSpectrogramToggle={setShowSpectrogram}
+        onFpsChange={handleFpsChange}
+      />
     </Layout>
   );
 };
