@@ -32,6 +32,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   const frequencyCanvasRef = useRef<HTMLCanvasElement>(null);
   const spectrogramCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   // Performance tracking
   const [fps, setFps] = useState(0);
@@ -64,21 +65,68 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
 
   // Update canvas size on container resize
   const updateCanvasSize = useCallback(() => {
-    if (!containerRef.current) return;
+    // Use canvasContainerRef for more accurate sizing
+    const canvasContainer = canvasContainerRef.current;
+    if (!canvasContainer) return;
     
-    const container = containerRef.current;
-    const rect = container.getBoundingClientRect();
-    const width = Math.floor(rect.width - 32); // Account for padding
-    const height = Math.floor(rect.height - 32);
+    const rect = canvasContainer.getBoundingClientRect();
+    const computedStyle = window.getComputedStyle(canvasContainer);
+    
+    // Get actual padding and border values
+    const paddingLeft = parseFloat(computedStyle.paddingLeft);
+    const paddingRight = parseFloat(computedStyle.paddingRight);
+    const paddingTop = parseFloat(computedStyle.paddingTop);
+    const paddingBottom = parseFloat(computedStyle.paddingBottom);
+    const borderLeft = parseFloat(computedStyle.borderLeftWidth);
+    const borderRight = parseFloat(computedStyle.borderRightWidth);
+    const borderTop = parseFloat(computedStyle.borderTopWidth);
+    const borderBottom = parseFloat(computedStyle.borderBottomWidth);
+    
+    // Calculate available space minus padding, borders, and gap for title
+    const availableWidth = rect.width - paddingLeft - paddingRight;
+    const availableHeight = rect.height - paddingTop - paddingBottom - 32; // 32px for title + gap
+    
+    // Canvas also has its own border (2px total)
+    const width = Math.max(200, Math.floor(availableWidth - 2));
+    const height = Math.max(150, Math.floor(availableHeight - 2));
     
     setCanvasSize({ width, height });
   }, []);
 
   useEffect(() => {
-    updateCanvasSize();
+    // Initial size calculation
+    const timer = setTimeout(updateCanvasSize, 100); // Allow DOM to settle
+    
+    let resizeObserver: ResizeObserver | null = null;
+    let resizeTimeout: NodeJS.Timeout;
+    
+    // Use ResizeObserver for more accurate size detection
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver((entries) => {
+        // Debounce resize calls to avoid excessive updates
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(updateCanvasSize, 16);
+      });
+      
+      // Observe the container when it's available
+      const observeContainer = () => {
+        if (canvasContainerRef.current && resizeObserver) {
+          resizeObserver.observe(canvasContainerRef.current);
+        }
+      };
+      
+      observeContainer();
+    }
+    
+    // Fallback to window resize for older browsers or as backup
     window.addEventListener('resize', updateCanvasSize);
     
     return () => {
+      clearTimeout(timer);
+      clearTimeout(resizeTimeout);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       window.removeEventListener('resize', updateCanvasSize);
     };
   }, [updateCanvasSize]);
@@ -362,7 +410,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       )}
 
       {showFrequency && (
-        <div className="canvas-container">
+        <div className="canvas-container" ref={canvasContainerRef}>
           <h4>Frequency Spectrum</h4>
           <canvas
             ref={frequencyCanvasRef}
@@ -374,7 +422,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       )}
 
       {showSpectrogram && (
-        <div className="canvas-container">
+        <div className="canvas-container" ref={!showFrequency ? canvasContainerRef : undefined}>
           <h4>Spectrogram</h4>
           <canvas
             ref={spectrogramCanvasRef}

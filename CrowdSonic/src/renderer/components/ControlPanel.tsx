@@ -257,18 +257,15 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       {/* Control Panel Content */}
       <div className="control-content">
         <div className="control-section">
-          <div className="connection-section">
+          <div 
+            className="connection-section clickable"
+            onClick={handleOpenServerManager}
+            title="点击管理服务器"
+          >
             <div className="connection-status">
               <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}></div>
               <span className="connection-text">{getConnectionDisplayText()}</span>
             </div>
-            <button 
-              className="manage-servers-button"
-              onClick={handleOpenServerManager}
-              title="管理服务器"
-            >
-              ⚙️ 编辑
-            </button>
           </div>
         </div>
 

@@ -49,6 +49,7 @@
   flex-direction: column;
   gap: var(--spacing-sm);
   min-height: 0;
+  overflow: hidden; /* Prevent content from exceeding container */
 }
 
 .canvas-container h4 {
@@ -60,12 +61,15 @@
 }
 
 .visualization-canvas {
-  flex: 1;
   background: #000000;
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   cursor: crosshair;
   image-rendering: pixelated;
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+  object-fit: contain;
 }
 
 /* Professional visualization styling */
