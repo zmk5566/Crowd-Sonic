@@ -1,0 +1,49 @@
+{
+  "name": "crowdsonic",
+  "version": "1.0.0",
+  "description": "Professional Ultrasonic Visualizer - Transform headless_ultrasonic into a professional Electron application",
+  "main": "dist/main.js",
+  "homepage": "https://github.com/username/CrowdSonic",
+  "author": {
+    "name": "CrowdSonic Team",
+    "email": "team@crowdsonic.dev"
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "webpack --mode=production",
+    "build:dev": "webpack --mode=development",
+    "start": "electron .",
+    "dev": "webpack --mode=development --watch",
+    "electron:dev": "NODE_ENV=development electron .",
+    "dist": "electron-builder",
+    "clean": "rm -rf dist/"
+  },
+  "keywords": [
+    "ultrasonic",
+    "visualizer",
+    "spectrum-analyzer",
+    "audio",
+    "fft",
+    "electron",
+    "professional"
+  ],
+  "devDependencies": {
+    "@types/node": "^24.3.1",
+    "css-loader": "^7.1.2",
+    "electron": "^38.1.0",
+    "html-webpack-plugin": "^5.6.4",
+    "style-loader": "^4.0.0",
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.9.2",
+    "webpack": "^5.101.3",
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "@types/pako": "^2.0.4",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "pako": "^2.1.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  }
+}

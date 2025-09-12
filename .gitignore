@@ -1,3 +1,5 @@
 
 *.pyc
 CLAUDE.md
+/CrowdSonic/node_modules
+/CrowdSonic/dist

@@ -46,7 +46,7 @@ class AudioCapture:
         
         # 设备断开检测
         self.last_callback_time = 0
-        self.callback_timeout = 2.0  # 2秒没有回调认为设备断开
+        self.callback_timeout = 10.0  # 10秒没有回调认为设备断开 (为MacBook Air麦克风增加容忍度)
         self.device_disconnected = False
         
     def add_callback(self, callback: Callable[[np.ndarray, float], None]):

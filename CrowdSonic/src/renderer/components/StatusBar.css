@@ -1,0 +1,87 @@
+.status-bar {
+  height: 32px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--spacing-md);
+  gap: var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.status-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.status-label {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.status-value {
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  min-width: 60px;
+  text-align: right;
+}
+
+.status-value.active {
+  color: var(--accent-primary);
+}
+
+.status-text {
+  color: var(--text-secondary);
+}
+
+.status-text.version {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.status-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border-color);
+}
+
+.status-spacer {
+  flex: 1;
+}
+
+/* Status indicators in the status bar */
+.status-bar .status-indicator {
+  width: 6px;
+  height: 6px;
+}
+
+.status-bar .status-indicator.connected {
+  animation: pulse-slow 2s infinite;
+}
+
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .status-bar {
+    font-size: 11px;
+    padding: 0 var(--spacing-sm);
+    gap: var(--spacing-sm);
+  }
+  
+  .status-value {
+    min-width: 40px;
+  }
+  
+  /* Hide some status items on small screens */
+  .status-section:nth-child(n+7) {
+    display: none;
+  }
+}
