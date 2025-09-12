@@ -84,7 +84,7 @@ const App: React.FC = () => {
 
   return (
     <Layout>
-      {/* Control Panel */}
+      {/* Control Panel - Now horizontal at top */}
       <ControlPanel
         isConnected={isConnected}
         isPlaying={isPlaying}
@@ -103,25 +103,28 @@ const App: React.FC = () => {
         targetFps={targetFps}
       />
 
-      {/* Main Visualization Area */}
-      <CanvasViewport
-        apiClient={apiClient}
-        isConnected={isConnected}
-        isPlaying={isPlaying}
-        showFrequency={showFrequency}
-        showSpectrogram={showSpectrogram}
-        onStatusUpdate={setStatusData}
-        currentDevice={currentDevice}
-      />
+      {/* Main Content Area */}
+      <div className="main-content">
+        {/* Main Visualization Area */}
+        <CanvasViewport
+          apiClient={apiClient}
+          isConnected={isConnected}
+          isPlaying={isPlaying}
+          showFrequency={showFrequency}
+          showSpectrogram={showSpectrogram}
+          onStatusUpdate={setStatusData}
+          currentDevice={currentDevice}
+        />
 
-      {/* Status Bar */}
-      <StatusBar
-        isConnected={isConnected}
-        fps={statusData.fps}
-        peakFreq={statusData.peakFreq}
-        peakAmplitude={statusData.peakAmplitude}
-        dataRate={statusData.dataRate}
-      />
+        {/* Status Bar */}
+        <StatusBar
+          isConnected={isConnected}
+          fps={statusData.fps}
+          peakFreq={statusData.peakFreq}
+          peakAmplitude={statusData.peakAmplitude}
+          dataRate={statusData.dataRate}
+        />
+      </div>
     </Layout>
   );
 };

@@ -49,6 +49,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Load available audio devices
   const loadDevices = async () => {
@@ -133,6 +134,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       await apiClient.startDevice(deviceToUse);
       console.log(`Device enabled: ${deviceToUse}`);
       
+      // Notify parent component about device change (set as current device)
+      if (onDeviceChange) {
+        onDeviceChange(deviceToUse);
+      }
+      
       // Wait a moment and check device status
       await new Promise(resolve => setTimeout(resolve, 1000));
       
@@ -184,30 +190,41 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   };
 
   return (
-    <div className="control-panel">
-      <div className="control-section">
-        <h3>Connection</h3>
-        
-        <div className="connection-status">
-          <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}></div>
-          <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
-        </div>
+    <div className={`control-panel ${isCollapsed ? 'collapsed' : ''}`}>
+      {/* Collapse Toggle Button */}
+      <button 
+        className="collapse-toggle" 
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        title={isCollapsed ? "Expand Control Panel" : "Collapse Control Panel"}
+      >
+        {isCollapsed ? '▼' : '▲'}
+      </button>
 
-        <form onSubmit={handleUrlSubmit} className="url-form">
-          <label htmlFor="base-url">Backend URL:</label>
-          <input
-            id="base-url"
-            type="url"
-            value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            placeholder="http://localhost:8380"
-          />
-          <div className="url-form-buttons">
-            <button type="submit">Connect</button>
-            <button type="button" onClick={onTestConnection}>Test</button>
+      {/* Control Panel Content */}
+      <div className={`control-content ${isCollapsed ? 'hidden' : ''}`}>
+        <div className="control-section">
+          <h3>Connection</h3>
+          
+          <div className="connection-status">
+            <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}></div>
+            <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
           </div>
-        </form>
-      </div>
+
+          <form onSubmit={handleUrlSubmit} className="url-form">
+            <label htmlFor="base-url">Backend URL:</label>
+            <input
+              id="base-url"
+              type="url"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              placeholder="http://localhost:8380"
+            />
+            <div className="url-form-buttons">
+              <button type="submit">Connect</button>
+              <button type="button" onClick={onTestConnection}>Test</button>
+            </div>
+          </form>
+        </div>
 
       {/* Audio Device Selection */}
       {isConnected && (
@@ -355,6 +372,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           <p>Platform: {window.electronAPI?.platform || 'Unknown'}</p>
           <p>Version: {window.electronAPI?.version || 'Unknown'}</p>
         </div>
+      </div>
       </div>
     </div>
   );
