@@ -114,16 +114,16 @@ const App: React.FC = () => {
           onStatusUpdate={setStatusData}
           currentDevice={currentDevice}
         />
-
-        {/* Status Bar */}
-        <StatusBar
-          isConnected={isConnected}
-          fps={statusData.fps}
-          peakFreq={statusData.peakFreq}
-          peakAmplitude={statusData.peakAmplitude}
-          dataRate={statusData.dataRate}
-        />
       </div>
+
+      {/* Footer Status Bar */}
+      <StatusBar
+        isConnected={isConnected}
+        fps={statusData.fps}
+        peakFreq={statusData.peakFreq}
+        peakAmplitude={statusData.peakAmplitude}
+        dataRate={statusData.dataRate}
+      />
 
       {/* Settings Panel - Fixed position bottom right */}
       <SettingsPanel

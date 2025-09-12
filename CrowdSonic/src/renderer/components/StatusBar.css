@@ -9,6 +9,9 @@
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
   flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 100;
 }
 
 .status-section {

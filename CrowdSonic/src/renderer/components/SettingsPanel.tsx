@@ -81,10 +81,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </div>
           </div>
         )}
-        
-        <div className="settings-info">
-          <div>v{window.electronAPI?.version || '1.0.0'}</div>
-        </div>
       </div>
     </div>
   );

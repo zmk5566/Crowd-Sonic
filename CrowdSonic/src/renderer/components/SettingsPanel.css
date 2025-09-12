@@ -1,6 +1,6 @@
 .settings-panel {
   position: fixed;
-  bottom: var(--spacing-md);
+  bottom: calc(32px + var(--spacing-md) + var(--spacing-md)); /* footer height + padding + margin */
   right: var(--spacing-md);
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
@@ -107,16 +107,4 @@
 .fps-presets button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.settings-info {
-  margin-top: var(--spacing-sm);
-  padding-top: var(--spacing-sm);
-  border-top: 1px solid var(--border-color);
-}
-
-.settings-info div {
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
-  text-align: center;
 }

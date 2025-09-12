@@ -46,6 +46,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const [selectedDevice, setSelectedDevice] = useState<string>('');
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
 
   // Load available audio devices
   const loadDevices = async () => {
@@ -183,6 +184,25 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const handleUrlSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onBaseUrlChange(urlInput);
+    setShowUrlInput(false); // Hide URL input after submit
+  };
+
+  const handleConnectionClick = () => {
+    setShowUrlInput(!showUrlInput);
+  };
+
+  const handleQuickConnect = (url: string) => {
+    setUrlInput(url);
+    onBaseUrlChange(url);
+    setShowUrlInput(false);
+  };
+
+  const getConnectionDisplayText = () => {
+    if (!isConnected) return 'Disconnected';
+    if (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
+      return 'Localserver Connected';
+    }
+    return 'Remote Connected';
   };
 
   return (
@@ -199,24 +219,45 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       {/* Control Panel Content */}
       <div className={`control-content ${isCollapsed ? 'hidden' : ''}`}>
         <div className="control-section">
-          <div className="connection-status">
-            <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}></div>
-            <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
+          <div className="connection-dropdown">
+            <button 
+              className={`connection-button ${isConnected ? 'connected' : 'disconnected'}`}
+              onClick={handleConnectionClick}
+            >
+              <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}></div>
+              <span>{getConnectionDisplayText()}</span>
+              <span className="dropdown-arrow">{showUrlInput ? '▲' : '▼'}</span>
+            </button>
+            
+            {showUrlInput && (
+              <div className="connection-menu">
+                <button 
+                  className="quick-connect-button"
+                  onClick={() => handleQuickConnect('http://localhost:8380')}
+                >
+                  Local Server (localhost:8380)
+                </button>
+                <button 
+                  className="quick-connect-button"
+                  onClick={() => handleQuickConnect('http://127.0.0.1:8380')}
+                >
+                  Local IP (127.0.0.1:8380)
+                </button>
+                <div className="custom-url-section">
+                  <form onSubmit={handleUrlSubmit} className="url-form compact">
+                    <input
+                      id="base-url"
+                      type="url"
+                      value={urlInput}
+                      onChange={(e) => setUrlInput(e.target.value)}
+                      placeholder="Custom URL"
+                    />
+                    <button type="submit">Connect</button>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
-
-          <form onSubmit={handleUrlSubmit} className="url-form compact">
-            <input
-              id="base-url"
-              type="url"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              placeholder="http://localhost:8380"
-            />
-            <div className="url-form-buttons">
-              <button type="submit">Connect</button>
-              <button type="button" onClick={onTestConnection}>Test</button>
-            </div>
-          </form>
         </div>
 
       {/* Audio Device Selection */}
@@ -288,18 +329,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       )}
 
       <div className="control-section">
-        <h4>Stream</h4>
-        
-        <div className="stream-controls">
-          <button
-            className={`play-button ${isPlaying ? 'playing' : ''}`}
-            onClick={onPlay}
-            disabled={!isConnected}
-          >
-            <div className={`status-indicator ${isPlaying ? 'playing' : ''}`}></div>
-            {isPlaying ? 'Stop' : 'Start'}
-          </button>
-        </div>
+        <button
+          className={`stream-button ${isPlaying ? 'streaming' : ''}`}
+          onClick={onPlay}
+          disabled={!isConnected}
+        >
+          {isPlaying ? 'Streaming' : 'Stream'}
+        </button>
       </div>
 
       </div>

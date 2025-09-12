@@ -69,13 +69,93 @@
 }
 
 /* Connection Section */
-.connection-status {
+.connection-dropdown {
+  position: relative;
+}
+
+.connection-button {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm);
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
   background: var(--bg-tertiary);
-  border-radius: var(--border-radius);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.connection-button:hover {
+  background: var(--bg-primary);
+  border-color: var(--accent-primary);
+}
+
+.connection-button.connected {
+  border-color: var(--status-success);
+  background: rgba(0, 255, 136, 0.1);
+}
+
+.dropdown-arrow {
+  margin-left: auto;
+  font-size: 10px;
+}
+
+.connection-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  margin-top: 2px;
+}
+
+.quick-connect-button {
+  display: block;
+  width: 100%;
+  padding: var(--spacing-sm);
+  background: none;
+  border: none;
+  text-align: left;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.quick-connect-button:hover {
+  background: var(--bg-tertiary);
+}
+
+.quick-connect-button:last-child {
+  border-bottom: none;
+}
+
+.custom-url-section {
+  padding: var(--spacing-sm);
+  border-top: 1px solid var(--border-color);
+}
+
+.custom-url-section .url-form {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.custom-url-section input {
+  flex: 1;
+  padding: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+}
+
+.custom-url-section button {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
 }
 
 .url-form {
@@ -103,10 +183,39 @@
 }
 
 /* Visualization Stream Section */
-.stream-controls {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
+.stream-button {
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 80px;
+}
+
+.stream-button:hover:not(:disabled) {
+  background: var(--accent-primary-hover);
+  transform: translateY(-1px);
+}
+
+.stream-button.streaming {
+  background: var(--status-error);
+  animation: pulse-streaming 1.5s infinite;
+}
+
+.stream-button:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  transform: none;
+}
+
+@keyframes pulse-streaming {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
 }
 
 .play-button {
