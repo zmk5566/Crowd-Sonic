@@ -478,7 +478,229 @@ class Config:
 
 ## 🚀 部署建议
 
-### 生产环境
+### 编译为独立可执行文件（推荐 ⭐）
+
+为了更好的性能和便携性，推荐将应用编译为独立的可执行文件：
+
+#### 1. 环境准备
+
+```bash
+# 创建专门的编译环境
+conda create -n audio-sync python=3.11 -y
+conda activate audio-sync
+
+# 安装必要的依赖
+pip install fastapi uvicorn pydantic numpy scipy sounddevice watchfiles pyinstaller
+```
+
+#### 2. 配置系统转换为JSON
+
+确保你的项目使用了JSON配置系统（而不是Python config模块）：
+
+- `config.json` - 配置文件
+- `config_loader.py` - JSON配置加载器
+- `main.py` 已修改支持编译环境
+
+#### 3. 执行编译
+
+```bash
+cd headless_ultrasonic
+
+# 编译为单个可执行文件（包含所有依赖）
+pyinstaller --onedir \
+  --collect-all scipy \
+  --collect-all numpy \
+  --hidden-import sounddevice \
+  --add-data "config.json:." \
+  --add-data "config_loader.py:." \
+  --add-data "core:core" \
+  --add-data "models:models" \
+  --add-data "api:api" \
+  --name headless_ultrasonic \
+  main.py
+```
+
+#### 4. 测试编译结果
+
+```bash
+# 运行编译后的可执行文件
+cd dist/headless_ultrasonic
+./headless_ultrasonic
+
+# 测试API是否正常
+curl http://localhost:8380/api/status
+```
+
+#### 5. 部署编译版本
+
+```bash
+# 将整个 dist/headless_ultrasonic 目录复制到目标机器
+cp -r dist/headless_ultrasonic /path/to/deployment/
+
+# 直接运行（无需Python环境）
+cd /path/to/deployment/headless_ultrasonic
+./headless_ultrasonic
+```
+
+#### 编译的优势
+
+✅ **无依赖运行**: 目标机器无需安装Python或任何依赖包  
+✅ **启动更快**: 无需Python解释器启动开销  
+✅ **内存稳定**: 更可预测的内存使用  
+✅ **便携性强**: 单个目录包含所有内容  
+✅ **集成友好**: 完美适配Electron应用架构  
+
+#### 快速编译脚本
+
+项目提供了自动化编译脚本：
+
+```bash
+# 激活编译环境
+conda activate audio-sync
+
+# 运行编译脚本
+cd headless_ultrasonic
+./build.sh
+```
+
+#### Electron集成示例
+
+编译完成后，可以在Electron主进程中集成：
+
+```javascript
+// main.js - Electron主进程
+const { spawn } = require('child_process');
+const path = require('path');
+
+class BackendManager {
+    constructor() {
+        this.backendProcess = null;
+        this.isRunning = false;
+    }
+    
+    async startBackend() {
+        return new Promise((resolve, reject) => {
+            const backendPath = path.join(__dirname, 'resources', 'headless_ultrasonic', 'headless_ultrasonic');
+            
+            this.backendProcess = spawn(backendPath, [], {
+                cwd: path.dirname(backendPath),
+                stdio: ['ignore', 'pipe', 'pipe']
+            });
+            
+            this.backendProcess.stdout.on('data', (data) => {
+                console.log(`Backend: ${data}`);
+                if (data.toString().includes('Uvicorn running')) {
+                    this.isRunning = true;
+                    resolve();
+                }
+            });
+            
+            this.backendProcess.stderr.on('data', (data) => {
+                console.error(`Backend Error: ${data}`);
+            });
+            
+            this.backendProcess.on('exit', (code) => {
+                console.log(`Backend exited with code ${code}`);
+                this.isRunning = false;
+            });
+            
+            // 超时处理
+            setTimeout(() => {
+                if (!this.isRunning) {
+                    reject(new Error('Backend startup timeout'));
+                }
+            }, 10000);
+        });
+    }
+    
+    stopBackend() {
+        if (this.backendProcess && this.isRunning) {
+            this.backendProcess.kill();
+            this.isRunning = false;
+        }
+    }
+}
+
+// 在app ready时启动后端
+const backendManager = new BackendManager();
+
+app.whenReady().then(async () => {
+    try {
+        await backendManager.startBackend();
+        console.log('✅ Backend started successfully');
+        
+        // 创建主窗口
+        createWindow();
+    } catch (error) {
+        console.error('❌ Failed to start backend:', error);
+    }
+});
+
+// 应用退出时清理
+app.on('before-quit', () => {
+    backendManager.stopBackend();
+});
+```
+
+在渲染进程中连接API：
+
+```javascript
+// renderer.js - 渲染进程
+class UltrasonicClient {
+    constructor() {
+        this.baseUrl = 'http://localhost:8380';
+        this.eventSource = null;
+    }
+    
+    async connectToDevice(deviceId) {
+        // 启动设备
+        await fetch(`${this.baseUrl}/api/devices/${deviceId}/start`, {
+            method: 'POST'
+        });
+        
+        // 连接数据流
+        this.eventSource = new EventSource(`${this.baseUrl}/api/devices/${deviceId}/stream`);
+        
+        this.eventSource.onmessage = (event) => {
+            const fftFrame = JSON.parse(event.data);
+            this.updateVisualization(fftFrame);
+        };
+    }
+    
+    updateVisualization(fftFrame) {
+        // 更新频谱图表
+        console.log(`频率: ${fftFrame.peak_frequency_hz}Hz, 幅度: ${fftFrame.peak_magnitude_db}dB`);
+    }
+}
+
+const client = new UltrasonicClient();
+```
+
+#### 常见编译问题解决
+
+1. **scipy.signal 模块缺失**:
+   ```bash
+   # 使用 --collect-all 参数收集完整模块
+   --collect-all scipy --collect-all numpy
+   ```
+
+2. **配置文件路径问题**:
+   ```python
+   # config_loader.py 中已处理编译环境路径
+   if getattr(sys, 'frozen', False):
+       # 编译后的路径处理
+       app_path = os.path.dirname(sys.executable)
+   ```
+
+3. **隐藏导入问题**:
+   ```bash
+   # 添加必要的隐藏导入
+   --hidden-import sounddevice
+   ```
+
+### 生产环境（Python方式）
+
+如果不使用编译版本，可以用传统方式部署：
 
 ```bash
 # 使用gunicorn部署

@@ -5,3 +5,5 @@ CLAUDE.md
 /CrowdSonic/dist
 /headless_ultrasonic/dist
 /headless_ultrasonic/build
+/headless_ultrasonic/resources/_internal
+/CrowdSonic/resources/headless_ultrasonic/_internal

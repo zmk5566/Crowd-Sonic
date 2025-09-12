@@ -3,6 +3,20 @@
 Headless超声波可视化器主应用
 基于FastAPI + SSE，提供实时FFT数据流
 """
+import sys
+import os
+
+# 修复PyInstaller编译后的导入路径
+if getattr(sys, 'frozen', False):
+    # 如果是PyInstaller打包后的环境
+    app_path = os.path.dirname(sys.executable)
+else:
+    # 如果是正常Python环境
+    app_path = os.path.dirname(os.path.abspath(__file__))
+
+# 将当前目录添加到Python路径
+sys.path.insert(0, app_path)
+
 import asyncio
 import logging
 import time
@@ -12,7 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 
-from config import Config
+from config_loader import Config
 from models import FFTFrame
 from core import (
     AudioCapture, FFTProcessor, DataStreamer, 
@@ -1300,11 +1314,17 @@ async def root():
     """
 
 if __name__ == "__main__":
+    import multiprocessing
     import uvicorn
+    
+    # 必须添加这行以支持PyInstaller编译
+    multiprocessing.freeze_support()
+    
     uvicorn.run(
-        "main:app",
+        app,  # 直接传递app对象而不是字符串
         host=Config.HOST,
         port=Config.PORT,
-        reload=Config.DEBUG,
+        reload=False,  # 编译后必须禁用reload
+        workers=1,     # 编译后只能使用1个worker
         log_level=Config.LOG_LEVEL.lower()
     )

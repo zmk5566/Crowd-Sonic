@@ -33,7 +33,7 @@ async def start_device(device_id: str):
         instance = device_manager.get_device_instance(device_id)
         if not instance:
             # 使用默认配置创建设备实例
-            from config import Config
+            from config_loader import Config
             stream_config = Config.get_stream_config()
             audio_config = Config.get_audio_config()
             
@@ -303,7 +303,7 @@ async def start_multiple_devices(device_ids: list[str]):
             # 检查或创建设备实例
             instance = device_manager.get_device_instance(device_id)
             if not instance:
-                from config import Config
+                from config_loader import Config
                 stream_config = Config.get_stream_config()
                 audio_config = Config.get_audio_config()
                 

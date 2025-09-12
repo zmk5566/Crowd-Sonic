@@ -7,51 +7,83 @@ let pythonProcess: ChildProcess | null = null;
 
 const isDev = process.env.NODE_ENV === 'development';
 
-// Python backend management
-const startPythonBackend = (): Promise<void> => {
+// Compiled backend management
+const startCompiledBackend = (): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
-      // Path to the headless_ultrasonic directory
-      const headlessPath = path.join(__dirname, '..', '..', '..', 'headless_ultrasonic');
+      // Path to the compiled headless_ultrasonic executable
+      const backendPath = path.join(__dirname, '..', 'resources', 'headless_ultrasonic', 'headless_ultrasonic');
+      const workingDir = path.dirname(backendPath);
       
-      console.log('Starting Python backend from:', headlessPath);
+      console.log('Starting compiled backend from:', backendPath);
+      console.log('Working directory:', workingDir);
       
-      pythonProcess = spawn('python', ['-c', `
-import uvicorn
-from main import app
-print('🎵 CrowdSonic backend starting...')
-print('Server: http://localhost:8380')
-uvicorn.run(app, host='0.0.0.0', port=8380, log_level='info')
-`], {
-        cwd: headlessPath,
-        stdio: 'inherit'
+      // Track resolution state to avoid multiple resolve/reject calls
+      let resolved = false;
+      
+      pythonProcess = spawn(backendPath, [], {
+        cwd: workingDir,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      pythonProcess.stdout?.on('data', (data) => {
+        const output = data.toString();
+        console.log('Backend:', output.trim());
+        
+        // Check if server has started successfully
+        if (output.includes('Uvicorn running on')) {
+          console.log('✅ Compiled backend started successfully');
+          if (!resolved) {
+            resolved = true;
+            resolve();
+          }
+        }
+      });
+
+      pythonProcess.stderr?.on('data', (data) => {
+        const output = data.toString();
+        console.error('Backend Error:', output.trim());
       });
 
       pythonProcess.on('error', (error) => {
-        console.error('Failed to start Python backend:', error);
-        reject(error);
+        console.error('Failed to start compiled backend:', error);
+        if (!resolved) {
+          resolved = true;
+          reject(error);
+        }
+      });
+
+      pythonProcess.on('exit', (code) => {
+        console.log(`Backend process exited with code ${code}`);
+        if (!resolved && code !== 0) {
+          resolved = true;
+          reject(new Error(`Backend process failed with exit code ${code}`));
+        }
       });
 
       // Give the backend time to start
       setTimeout(() => {
-        if (pythonProcess && !pythonProcess.killed) {
-          console.log('Python backend started successfully');
-          resolve();
-        } else {
-          reject(new Error('Python process failed to start'));
+        if (!resolved) {
+          resolved = true;
+          if (pythonProcess && !pythonProcess.killed) {
+            console.log('✅ Backend startup timeout, but process is running');
+            resolve();
+          } else {
+            reject(new Error('Backend process failed to start within timeout'));
+          }
         }
-      }, 2000);
+      }, 5000); // Increased timeout for compiled version
 
     } catch (error) {
-      console.error('Error starting Python backend:', error);
+      console.error('Error starting compiled backend:', error);
       reject(error);
     }
   });
 };
 
-const stopPythonBackend = () => {
+const stopCompiledBackend = () => {
   if (pythonProcess && !pythonProcess.killed) {
-    console.log('Stopping Python backend...');
+    console.log('Stopping compiled backend...');
     pythonProcess.kill('SIGTERM');
     pythonProcess = null;
   }
@@ -136,12 +168,12 @@ const createMenu = () => {
 app.whenReady().then(async () => {
   console.log('CrowdSonic app is ready');
   
-  // Try to start Python backend, but don't fail if it's not available
+  // Try to start compiled backend, but don't fail if it's not available
   try {
-    await startPythonBackend();
-    console.log('Python backend started successfully');
+    await startCompiledBackend();
+    console.log('✅ Compiled backend started successfully');
   } catch (error: any) {
-    console.warn('Could not start local Python backend:', error.message || error);
+    console.warn('Could not start compiled backend:', error.message || error);
     console.log('CrowdSonic will start in remote-only mode');
   }
   
@@ -154,21 +186,21 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  stopPythonBackend();
+  stopCompiledBackend();
   if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('before-quit', () => {
-  stopPythonBackend();
+  stopCompiledBackend();
 });
 
 // Handle app termination
 process.on('SIGINT', () => {
-  stopPythonBackend();
+  stopCompiledBackend();
   app.quit();
 });
 
 process.on('SIGTERM', () => {
-  stopPythonBackend();
+  stopCompiledBackend();
   app.quit();
 });
