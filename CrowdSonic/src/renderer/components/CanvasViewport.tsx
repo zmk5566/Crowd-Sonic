@@ -9,6 +9,217 @@ interface VisualizationSettings {
   maxFreqKHz: number;
 }
 
+// Settings panel component for frequency range - defined outside to prevent recreation
+const FrequencySettingsPanel: React.FC<{
+  isOpen: boolean;
+  settings: VisualizationSettings;
+  onSettingsChange: (settings: VisualizationSettings) => void;
+  onClose: () => void;
+  title: string;
+}> = ({ isOpen, settings, onSettingsChange, onClose, title }) => {
+  // Use a ref to track if we've initialized this panel's values
+  const initializedRef = useRef(false);
+  const [tempSettings, setTempSettings] = useState(() => {
+    // Initialize with current settings only on first render
+    return { ...settings };
+  });
+  const [error, setError] = useState('');
+  
+  // Debug: Monitor tempSettings changes
+  useEffect(() => {
+    console.log('🟠 TempSettings changed in', title, ':', tempSettings);
+  }, [tempSettings, title]);
+
+  // Only initialize once when panel first opens, ignore all other updates
+  useEffect(() => {
+    console.log('🔍 useEffect triggered for', title, '- isOpen:', isOpen, 'initialized:', initializedRef.current);
+    if (isOpen && !initializedRef.current) {
+      // Capture the current settings at the moment of opening
+      console.log('🟢 Initializing panel settings:', settings, 'for', title);
+      setTempSettings({ ...settings });
+      setError('');
+      initializedRef.current = true;
+      console.log('✅ Panel initialized for', title, 'initialized flag now:', initializedRef.current);
+    }
+    // Deliberately NO dependency on settings - we want to ignore external changes
+  }, [isOpen, title]);
+  
+  // Reset initialization flag when panel closes
+  useEffect(() => {
+    if (!isOpen) {
+      initializedRef.current = false;
+    }
+  }, [isOpen]);
+
+  // Store original settings when panel opens for cancel functionality
+  const originalSettingsRef = useRef(settings);
+  
+  // Update original settings reference when panel opens
+  useEffect(() => {
+    if (isOpen && !initializedRef.current) {
+      originalSettingsRef.current = { ...settings };
+    }
+  }, [isOpen, settings]);
+
+  const handleMinFreqChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const inputValue = e.target.value;
+    console.log('🟡 User typing min freq:', inputValue, 'in', title);
+    // Allow empty string for typing
+    if (inputValue === '') {
+      setTempSettings({ ...tempSettings, minFreqKHz: 0 });
+      return;
+    }
+    
+    const value = parseFloat(inputValue);
+    if (!isNaN(value) && value >= 0 && value <= 200) {
+      console.log('🟡 Setting min freq to:', value, 'in', title);
+      setTempSettings({ ...tempSettings, minFreqKHz: value });
+      if (value >= tempSettings.maxFreqKHz) {
+        setError('Minimum frequency must be less than maximum frequency');
+      } else {
+        setError('');
+      }
+    }
+  };
+
+  const handleMaxFreqChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const inputValue = e.target.value;
+    console.log('🟡 User typing max freq:', inputValue, 'in', title);
+    // Allow empty string for typing
+    if (inputValue === '') {
+      setTempSettings({ ...tempSettings, maxFreqKHz: 200 });
+      return;
+    }
+    
+    const value = parseFloat(inputValue);
+    if (!isNaN(value) && value >= 0 && value <= 200) {
+      console.log('🟡 Setting max freq to:', value, 'in', title);
+      setTempSettings({ ...tempSettings, maxFreqKHz: value });
+      if (value <= tempSettings.minFreqKHz) {
+        setError('Maximum frequency must be greater than minimum frequency');
+      } else {
+        setError('');
+      }
+    }
+  };
+
+  const handleApply = () => {
+    if (tempSettings.minFreqKHz < tempSettings.maxFreqKHz) {
+      console.log('🟢 Applying settings:', tempSettings, 'for', title);
+      onSettingsChange(tempSettings);
+      initializedRef.current = false; // Allow re-initialization next time
+      onClose();
+    }
+  };
+
+  const handleCancel = () => {
+    // Reset to the original settings that were captured when panel opened
+    setTempSettings({ ...originalSettingsRef.current });
+    setError('');
+    initializedRef.current = false; // Allow re-initialization next time
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div style={{
+      position: 'absolute',
+      top: '40px',
+      right: '10px',
+      background: 'rgba(26, 26, 46, 0.95)',
+      border: '1px solid rgba(255, 255, 255, 0.2)',
+      borderRadius: '8px',
+      padding: '15px',
+      zIndex: 100,
+      minWidth: '250px',
+      backdropFilter: 'blur(8px)'
+    }}>
+      <h5 style={{ margin: '0 0 10px 0', color: '#fff', fontSize: '14px' }}>{title} Settings</h5>
+      
+      <div style={{ marginBottom: '10px' }}>
+        <label style={{ display: 'block', color: '#aaa', fontSize: '12px', marginBottom: '4px' }}>
+          Min Frequency (kHz)
+        </label>
+        <input
+          type="number"
+          min="0"
+          max="200"
+          step="10"
+          value={tempSettings.minFreqKHz}
+          onChange={handleMinFreqChange}
+          style={{
+            width: '100%',
+            padding: '4px 8px',
+            background: 'rgba(0, 0, 0, 0.3)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            borderRadius: '4px',
+            color: '#fff'
+          }}
+        />
+      </div>
+      
+      <div style={{ marginBottom: '10px' }}>
+        <label style={{ display: 'block', color: '#aaa', fontSize: '12px', marginBottom: '4px' }}>
+          Max Frequency (kHz)
+        </label>
+        <input
+          type="number"
+          min="0"
+          max="200"
+          step="10"
+          value={tempSettings.maxFreqKHz}
+          onChange={handleMaxFreqChange}
+          style={{
+            width: '100%',
+            padding: '4px 8px',
+            background: 'rgba(0, 0, 0, 0.3)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            borderRadius: '4px',
+            color: '#fff'
+          }}
+        />
+      </div>
+      
+      {error && (
+        <div style={{ color: '#ff4444', fontSize: '12px', marginBottom: '10px' }}>{error}</div>
+      )}
+      
+      <div style={{ display: 'flex', gap: '10px' }}>
+        <button
+          onClick={handleApply}
+          disabled={!!error || tempSettings.minFreqKHz >= tempSettings.maxFreqKHz}
+          style={{
+            flex: 1,
+            padding: '6px',
+            background: error || tempSettings.minFreqKHz >= tempSettings.maxFreqKHz ? '#444' : '#00ff88',
+            color: error || tempSettings.minFreqKHz >= tempSettings.maxFreqKHz ? '#888' : '#000',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: error || tempSettings.minFreqKHz >= tempSettings.maxFreqKHz ? 'not-allowed' : 'pointer'
+          }}
+        >
+          Apply
+        </button>
+        <button
+          onClick={handleCancel}
+          style={{
+            flex: 1,
+            padding: '6px',
+            background: 'rgba(255, 255, 255, 0.1)',
+            color: '#fff',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+};
+
 interface CanvasViewportProps {
   apiClient: APIClient;
   isConnected: boolean;
@@ -58,6 +269,17 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     minFreqKHz: 0,
     maxFreqKHz: 200
   });
+  
+  // Debug: Track when settings change
+  useEffect(() => {
+    console.log('🔴 FrequencySettings changed:', frequencySettings);
+    console.trace('FrequencySettings change stack trace');
+  }, [frequencySettings]);
+  
+  useEffect(() => {
+    console.log('🔴 SpectrogramSettings changed:', spectrogramSettings);
+    console.trace('SpectrogramSettings change stack trace');
+  }, [spectrogramSettings]);
   
   // Settings panel visibility
   const [showFrequencySettings, setShowFrequencySettings] = useState(false);
@@ -526,154 +748,20 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     return [r, g, b];
   };
 
-  // Settings panel component for frequency range
-  const FrequencySettingsPanel: React.FC<{
-    isOpen: boolean;
-    settings: VisualizationSettings;
-    onSettingsChange: (settings: VisualizationSettings) => void;
-    onClose: () => void;
-    title: string;
-  }> = ({ isOpen, settings, onSettingsChange, onClose, title }) => {
-    const [tempSettings, setTempSettings] = useState(settings);
-    const [error, setError] = useState('');
-
-    useEffect(() => {
-      setTempSettings(settings);
-    }, [settings]);
-
-    const handleMinFreqChange = (e: ChangeEvent<HTMLInputElement>) => {
-      const value = parseFloat(e.target.value);
-      if (!isNaN(value)) {
-        setTempSettings({ ...tempSettings, minFreqKHz: value });
-        if (value >= tempSettings.maxFreqKHz) {
-          setError('Minimum frequency must be less than maximum frequency');
-        } else {
-          setError('');
-        }
-      }
-    };
-
-    const handleMaxFreqChange = (e: ChangeEvent<HTMLInputElement>) => {
-      const value = parseFloat(e.target.value);
-      if (!isNaN(value)) {
-        setTempSettings({ ...tempSettings, maxFreqKHz: value });
-        if (value <= tempSettings.minFreqKHz) {
-          setError('Maximum frequency must be greater than minimum frequency');
-        } else {
-          setError('');
-        }
-      }
-    };
-
-    const handleApply = () => {
-      if (tempSettings.minFreqKHz < tempSettings.maxFreqKHz) {
-        onSettingsChange(tempSettings);
-        onClose();
-      }
-    };
-
-    if (!isOpen) return null;
-
-    return (
-      <div style={{
-        position: 'absolute',
-        top: '40px',
-        right: '10px',
-        background: 'rgba(26, 26, 46, 0.95)',
-        border: '1px solid rgba(255, 255, 255, 0.2)',
-        borderRadius: '8px',
-        padding: '15px',
-        zIndex: 100,
-        minWidth: '250px',
-        backdropFilter: 'blur(8px)'
-      }}>
-        <h5 style={{ margin: '0 0 10px 0', color: '#fff', fontSize: '14px' }}>{title} Settings</h5>
-        
-        <div style={{ marginBottom: '10px' }}>
-          <label style={{ display: 'block', color: '#aaa', fontSize: '12px', marginBottom: '4px' }}>
-            Min Frequency (kHz)
-          </label>
-          <input
-            type="number"
-            min="0"
-            max="200"
-            step="1"
-            value={tempSettings.minFreqKHz}
-            onChange={handleMinFreqChange}
-            style={{
-              width: '100%',
-              padding: '4px 8px',
-              background: 'rgba(0, 0, 0, 0.3)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: '4px',
-              color: '#fff'
-            }}
-          />
-        </div>
-        
-        <div style={{ marginBottom: '10px' }}>
-          <label style={{ display: 'block', color: '#aaa', fontSize: '12px', marginBottom: '4px' }}>
-            Max Frequency (kHz)
-          </label>
-          <input
-            type="number"
-            min="0"
-            max="200"
-            step="1"
-            value={tempSettings.maxFreqKHz}
-            onChange={handleMaxFreqChange}
-            style={{
-              width: '100%',
-              padding: '4px 8px',
-              background: 'rgba(0, 0, 0, 0.3)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: '4px',
-              color: '#fff'
-            }}
-          />
-        </div>
-        
-        {error && (
-          <div style={{ color: '#ff4444', fontSize: '12px', marginBottom: '10px' }}>{error}</div>
-        )}
-        
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button
-            onClick={handleApply}
-            disabled={!!error || tempSettings.minFreqKHz >= tempSettings.maxFreqKHz}
-            style={{
-              flex: 1,
-              padding: '6px',
-              background: error || tempSettings.minFreqKHz >= tempSettings.maxFreqKHz ? '#444' : '#00ff88',
-              color: error || tempSettings.minFreqKHz >= tempSettings.maxFreqKHz ? '#888' : '#000',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: error || tempSettings.minFreqKHz >= tempSettings.maxFreqKHz ? 'not-allowed' : 'pointer'
-            }}
-          >
-            Apply
-          </button>
-          <button
-            onClick={onClose}
-            style={{
-              flex: 1,
-              padding: '6px',
-              background: 'rgba(255, 255, 255, 0.1)',
-              color: '#fff',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    );
-  };
 
   // Canvas now fills the entire container, so use the full calculated height
   const displayHeight = canvasSize.height;
+
+  // Debug: Monitor component render
+  console.log('🚀 CanvasViewport render', { 
+    showFrequency, 
+    showSpectrogram, 
+    isConnected, 
+    isPlaying, 
+    hasRunningDevice, 
+    frequencySettings,
+    spectrogramSettings 
+  });
 
   return (
     <div className="canvas-viewport" ref={containerRef}>
