@@ -6,6 +6,7 @@
   flex-direction: column;
   flex-shrink: 0;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  -webkit-app-region: no-drag;
 }
 
 .control-content {

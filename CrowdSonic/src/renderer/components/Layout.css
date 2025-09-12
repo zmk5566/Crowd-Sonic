@@ -8,36 +8,12 @@
 
 .layout-header {
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
-  padding: var(--spacing-sm) var(--spacing-md);
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  height: 24px;
   flex-shrink: 0;
+  -webkit-app-region: drag;
+  cursor: grab;
 }
 
-.app-title {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-}
-
-.app-logo {
-  font-size: 20px;
-}
-
-.app-name {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.app-subtitle {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-  margin-left: var(--spacing-md);
-}
 
 .layout-body {
   display: flex;

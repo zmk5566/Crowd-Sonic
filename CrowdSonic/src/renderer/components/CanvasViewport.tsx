@@ -1,7 +1,13 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, ChangeEvent } from 'react';
 import { APIClient, FFTFrame } from '../services/api';
 import * as pako from 'pako';
 import './CanvasViewport.css';
+
+// Visualization settings for each chart
+interface VisualizationSettings {
+  minFreqKHz: number;
+  maxFreqKHz: number;
+}
 
 interface CanvasViewportProps {
   apiClient: APIClient;
@@ -41,6 +47,21 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
 
   // Canvas dimensions
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 400 });
+  
+  // Visualization settings for each chart
+  const [frequencySettings, setFrequencySettings] = useState<VisualizationSettings>({
+    minFreqKHz: 0,
+    maxFreqKHz: 200
+  });
+  
+  const [spectrogramSettings, setSpectrogramSettings] = useState<VisualizationSettings>({
+    minFreqKHz: 0,
+    maxFreqKHz: 200
+  });
+  
+  // Settings panel visibility
+  const [showFrequencySettings, setShowFrequencySettings] = useState(false);
+  const [showSpectrogramSettings, setShowSpectrogramSettings] = useState(false);
 
   // Waterfall spectrogram state - using useRef to avoid re-renders
   const waterfallDataRef = useRef<number[][]>([]);
@@ -163,9 +184,6 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       frameCount.current = 0;
       lastTime.current = now;
       
-      // Debug: Log backend FPS vs our FPS
-      console.log(`Frontend FPS: ${currentFps}, Backend FPS: ${frame.fps?.toFixed(1) || 'N/A'}`);
-      
       // Update status using current FPS
       onStatusUpdateRef.current({
         fps: currentFps,
@@ -239,15 +257,17 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       const maxFreq = sampleRate / 2; // Nyquist frequency
       const freqStep = maxFreq / fftData.length;
       
-      // Constants for display (similar to original headless_ultrasonic)
-      const MAX_FREQ_KHZ = 100;
+      // Constants for display (use dynamic frequency settings)
+      const MAX_FREQ_KHZ = frequencySettings.maxFreqKHz;
+      const MIN_FREQ_KHZ = frequencySettings.minFreqKHz;
       const MIN_DB = -100;
       const MAX_DB = 0;
       const PADDING = 40;
       const PLOT_WIDTH = width - 2 * PADDING;
       const PLOT_HEIGHT = height - 2 * PADDING;
       
-      // Find max frequency index to display (up to 100kHz)
+      // Find frequency indices to display based on settings
+      const minFreqIndex = Math.max(0, Math.floor((MIN_FREQ_KHZ * 1000) / freqStep));
       const maxFreqIndex = Math.min(fftData.length, Math.floor((MAX_FREQ_KHZ * 1000) / freqStep));
 
       // Draw spectrum line (optimized - less points for performance)
@@ -255,14 +275,14 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       ctx.lineWidth = 2;
       ctx.beginPath();
 
-      const step = Math.max(1, Math.floor(maxFreqIndex / 800)); // Reduce points for performance
+      const step = Math.max(1, Math.floor((maxFreqIndex - minFreqIndex) / 800)); // Reduce points for performance
       let firstPoint = true;
       
-      for (let i = 0; i < maxFreqIndex; i += step) {
+      for (let i = minFreqIndex; i < maxFreqIndex; i += step) {
         const freq = (i * freqStep) / 1000; // Convert to kHz
         const db = fftData[i];
         
-        const x = PADDING + (freq / MAX_FREQ_KHZ) * PLOT_WIDTH;
+        const x = PADDING + ((freq - MIN_FREQ_KHZ) / (MAX_FREQ_KHZ - MIN_FREQ_KHZ)) * PLOT_WIDTH;
         // Normalize dB value and flip Y axis
         const normalizedDb = Math.max(0, Math.min(1, (db - MIN_DB) / (MAX_DB - MIN_DB)));
         const y = PADDING + (1 - normalizedDb) * PLOT_HEIGHT;
@@ -280,8 +300,8 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       // Draw only peak frequency indicator
       if (frame.peak_frequency_hz > 0) {
         const peakFreqKHz = frame.peak_frequency_hz / 1000;
-        if (peakFreqKHz <= MAX_FREQ_KHZ) {
-          const peakX = PADDING + (peakFreqKHz / MAX_FREQ_KHZ) * PLOT_WIDTH;
+        if (peakFreqKHz >= MIN_FREQ_KHZ && peakFreqKHz <= MAX_FREQ_KHZ) {
+          const peakX = PADDING + ((peakFreqKHz - MIN_FREQ_KHZ) / (MAX_FREQ_KHZ - MIN_FREQ_KHZ)) * PLOT_WIDTH;
           ctx.strokeStyle = '#ff4444';
           ctx.lineWidth = 1;
           ctx.setLineDash([5, 5]);
@@ -298,18 +318,16 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
           ctx.fillText(`${peakFreqKHz.toFixed(1)}kHz`, peakX, PADDING - 10);
         }
       }
-    }
 
-    // Draw labels (less frequently for performance) 
-    drawFrequencyLabels(ctx, width, height);
+      // Draw labels (less frequently for performance) 
+      drawFrequencyLabels(ctx, width, height, MIN_FREQ_KHZ, MAX_FREQ_KHZ);
+    }
   };
 
   // Render spectrogram waterfall
   const renderSpectrogram = (canvas: HTMLCanvasElement, frame: FFTFrame) => {
-    console.log('renderSpectrogram called', { width: canvas.width, height: canvas.height, sequenceId: frame.sequence_id });
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-      console.error('Failed to get canvas context');
       return;
     }
 
@@ -318,26 +336,25 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     // Decompress FFT data
     const fftData = decompressFFTData(frame.data_compressed);
     if (!fftData || fftData.length === 0) {
-      console.error('Failed to decompress FFT data or empty data');
       return;
     }
-    console.log('FFT data decompressed', { length: fftData.length, sampleData: fftData.slice(0, 5) });
 
     // Calculate frequency parameters
     const sampleRate = frame.sample_rate;
     const maxFreq = sampleRate / 2; // Nyquist frequency
     const freqStep = maxFreq / fftData.length;
-    const MAX_FREQ_KHZ = 100; // Display up to 100kHz
+    const MAX_FREQ_KHZ = spectrogramSettings.maxFreqKHz;
+    const MIN_FREQ_KHZ = spectrogramSettings.minFreqKHz;
+    const minFreqIndex = Math.max(0, Math.floor((MIN_FREQ_KHZ * 1000) / freqStep));
     const maxFreqIndex = Math.min(fftData.length, Math.floor((MAX_FREQ_KHZ * 1000) / freqStep));
     
     // Initialize or resize waterfall data if needed
-    if (waterfallDataRef.current.length === 0 || waterfallFreqBinsRef.current !== maxFreqIndex) {
-      console.log('Initializing waterfall data', { waterfallHeight, maxFreqIndex, currentLength: waterfallDataRef.current.length });
+    const freqBinCount = maxFreqIndex - minFreqIndex;
+    if (waterfallDataRef.current.length === 0 || waterfallFreqBinsRef.current !== freqBinCount) {
       waterfallDataRef.current = Array(waterfallHeight).fill(null).map(() => 
-        Array(maxFreqIndex).fill(-100) // Initialize with -100dB
+        Array(freqBinCount).fill(-100) // Initialize with -100dB
       );
-      waterfallFreqBinsRef.current = maxFreqIndex;
-      console.log('Waterfall data initialized');
+      waterfallFreqBinsRef.current = freqBinCount;
       return; // Skip this frame while initializing
     }
 
@@ -346,8 +363,8 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     for (let i = 1; i < waterfallHeight; i++) {
       waterfallDataRef.current[i - 1] = waterfallDataRef.current[i];
     }
-    // Add new data at the bottom
-    waterfallDataRef.current[waterfallHeight - 1] = Array.from(fftData.slice(0, maxFreqIndex));
+    // Add new data at the bottom (slice within the frequency range)
+    waterfallDataRef.current[waterfallHeight - 1] = Array.from(fftData.slice(minFreqIndex, maxFreqIndex));
 
     // Constants for rendering
     const PADDING = 40;
@@ -369,7 +386,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       const timeIndex = Math.floor((y / PLOT_HEIGHT) * waterfallHeight);
       if (timeIndex >= 0 && timeIndex < waterfallDataRef.current.length) {
         for (let x = 0; x < PLOT_WIDTH; x++) {
-          const freqIndex = Math.floor((x / PLOT_WIDTH) * maxFreqIndex);
+          const freqIndex = Math.floor((x / PLOT_WIDTH) * freqBinCount);
           if (freqIndex >= 0 && freqIndex < waterfallDataRef.current[timeIndex].length) {
             const dbValue = waterfallDataRef.current[timeIndex][freqIndex];
             
@@ -392,10 +409,9 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
 
     // Draw the image data
     ctx.putImageData(imageData, PADDING, PADDING);
-    console.log('Spectrogram image drawn', { imageWidth: PLOT_WIDTH, imageHeight: PLOT_HEIGHT });
 
     // Draw frequency and time labels
-    drawSpectrogramLabels(ctx, width, height, MAX_FREQ_KHZ);
+    drawSpectrogramLabels(ctx, width, height, MIN_FREQ_KHZ, MAX_FREQ_KHZ);
   };
 
   // Draw grid helper (professional style)
@@ -427,11 +443,10 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   };
 
   // Draw frequency and amplitude labels
-  const drawFrequencyLabels = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+  const drawFrequencyLabels = (ctx: CanvasRenderingContext2D, width: number, height: number, minFreqKHz: number, maxFreqKHz: number) => {
     const PADDING = 40;
     const PLOT_WIDTH = width - 2 * PADDING;
     const PLOT_HEIGHT = height - 2 * PADDING;
-    const MAX_FREQ_KHZ = 100;
     const MIN_DB = -100;
     const MAX_DB = 0;
     
@@ -442,7 +457,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     ctx.textAlign = 'center';
     for (let i = 0; i <= 10; i++) {
       const x = PADDING + (i / 10) * PLOT_WIDTH;
-      const freq = (i / 10) * MAX_FREQ_KHZ;
+      const freq = minFreqKHz + (i / 10) * (maxFreqKHz - minFreqKHz);
       ctx.fillText(`${freq.toFixed(0)}k`, x, height - 10);
     }
     
@@ -456,7 +471,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   };
 
   // Draw spectrogram labels (frequency on X-axis, time on Y-axis)
-  const drawSpectrogramLabels = (ctx: CanvasRenderingContext2D, width: number, height: number, maxFreqKhz: number) => {
+  const drawSpectrogramLabels = (ctx: CanvasRenderingContext2D, width: number, height: number, minFreqKhz: number, maxFreqKhz: number) => {
     const PADDING = 40;
     const PLOT_WIDTH = width - 2 * PADDING;
     const PLOT_HEIGHT = height - 2 * PADDING;
@@ -468,7 +483,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     ctx.textAlign = 'center';
     for (let i = 0; i <= 10; i++) {
       const x = PADDING + (i / 10) * PLOT_WIDTH;
-      const freq = (i / 10) * maxFreqKhz;
+      const freq = minFreqKhz + (i / 10) * (maxFreqKhz - minFreqKhz);
       ctx.fillText(`${freq.toFixed(0)}k`, x, height - 10);
     }
     
@@ -511,11 +526,155 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     return [r, g, b];
   };
 
+  // Settings panel component for frequency range
+  const FrequencySettingsPanel: React.FC<{
+    isOpen: boolean;
+    settings: VisualizationSettings;
+    onSettingsChange: (settings: VisualizationSettings) => void;
+    onClose: () => void;
+    title: string;
+  }> = ({ isOpen, settings, onSettingsChange, onClose, title }) => {
+    const [tempSettings, setTempSettings] = useState(settings);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+      setTempSettings(settings);
+    }, [settings]);
+
+    const handleMinFreqChange = (e: ChangeEvent<HTMLInputElement>) => {
+      const value = parseFloat(e.target.value);
+      if (!isNaN(value)) {
+        setTempSettings({ ...tempSettings, minFreqKHz: value });
+        if (value >= tempSettings.maxFreqKHz) {
+          setError('Minimum frequency must be less than maximum frequency');
+        } else {
+          setError('');
+        }
+      }
+    };
+
+    const handleMaxFreqChange = (e: ChangeEvent<HTMLInputElement>) => {
+      const value = parseFloat(e.target.value);
+      if (!isNaN(value)) {
+        setTempSettings({ ...tempSettings, maxFreqKHz: value });
+        if (value <= tempSettings.minFreqKHz) {
+          setError('Maximum frequency must be greater than minimum frequency');
+        } else {
+          setError('');
+        }
+      }
+    };
+
+    const handleApply = () => {
+      if (tempSettings.minFreqKHz < tempSettings.maxFreqKHz) {
+        onSettingsChange(tempSettings);
+        onClose();
+      }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+      <div style={{
+        position: 'absolute',
+        top: '40px',
+        right: '10px',
+        background: 'rgba(26, 26, 46, 0.95)',
+        border: '1px solid rgba(255, 255, 255, 0.2)',
+        borderRadius: '8px',
+        padding: '15px',
+        zIndex: 100,
+        minWidth: '250px',
+        backdropFilter: 'blur(8px)'
+      }}>
+        <h5 style={{ margin: '0 0 10px 0', color: '#fff', fontSize: '14px' }}>{title} Settings</h5>
+        
+        <div style={{ marginBottom: '10px' }}>
+          <label style={{ display: 'block', color: '#aaa', fontSize: '12px', marginBottom: '4px' }}>
+            Min Frequency (kHz)
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="200"
+            step="1"
+            value={tempSettings.minFreqKHz}
+            onChange={handleMinFreqChange}
+            style={{
+              width: '100%',
+              padding: '4px 8px',
+              background: 'rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '4px',
+              color: '#fff'
+            }}
+          />
+        </div>
+        
+        <div style={{ marginBottom: '10px' }}>
+          <label style={{ display: 'block', color: '#aaa', fontSize: '12px', marginBottom: '4px' }}>
+            Max Frequency (kHz)
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="200"
+            step="1"
+            value={tempSettings.maxFreqKHz}
+            onChange={handleMaxFreqChange}
+            style={{
+              width: '100%',
+              padding: '4px 8px',
+              background: 'rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '4px',
+              color: '#fff'
+            }}
+          />
+        </div>
+        
+        {error && (
+          <div style={{ color: '#ff4444', fontSize: '12px', marginBottom: '10px' }}>{error}</div>
+        )}
+        
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={handleApply}
+            disabled={!!error || tempSettings.minFreqKHz >= tempSettings.maxFreqKHz}
+            style={{
+              flex: 1,
+              padding: '6px',
+              background: error || tempSettings.minFreqKHz >= tempSettings.maxFreqKHz ? '#444' : '#00ff88',
+              color: error || tempSettings.minFreqKHz >= tempSettings.maxFreqKHz ? '#888' : '#000',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: error || tempSettings.minFreqKHz >= tempSettings.maxFreqKHz ? 'not-allowed' : 'pointer'
+            }}
+          >
+            Apply
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: '6px',
+              background: 'rgba(255, 255, 255, 0.1)',
+              color: '#fff',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // Canvas now fills the entire container, so use the full calculated height
   const displayHeight = canvasSize.height;
 
-  console.log('CanvasViewport render', { showFrequency, showSpectrogram, isConnected, isPlaying, hasRunningDevice });
-  
   return (
     <div className="canvas-viewport" ref={containerRef}>
       {!isConnected && (
@@ -546,7 +705,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       )}
 
       {showFrequency && (
-        <div className="canvas-container" ref={canvasContainerRef}>
+        <div className="canvas-container" ref={canvasContainerRef} style={{ position: 'relative' }}>
           <canvas
             ref={frequencyCanvasRef}
             width={canvasSize.width}
@@ -556,11 +715,49 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
           <div className="canvas-title-overlay">
             <h4>Frequency Spectrum</h4>
           </div>
+          
+          {/* Settings icon button */}
+          <button
+            onClick={() => setShowFrequencySettings(!showFrequencySettings)}
+            style={{
+              position: 'absolute',
+              top: '10px',
+              right: '10px',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '4px',
+              padding: '6px',
+              cursor: 'pointer',
+              width: '30px',
+              height: '30px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 10
+            }}
+            title="Settings"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M8 1C7.45 1 7 1.45 7 2V2.07C6.38 2.18 5.79 2.38 5.26 2.68L5.2 2.62C4.82 2.24 4.18 2.24 3.8 2.62L3.08 3.34C2.7 3.72 2.7 4.36 3.08 4.74L3.14 4.8C2.84 5.33 2.64 5.92 2.53 6.54H2.46C1.91 6.54 1.46 6.99 1.46 7.54V8.46C1.46 9.01 1.91 9.46 2.46 9.46H2.53C2.64 10.08 2.84 10.67 3.14 11.2L3.08 11.26C2.7 11.64 2.7 12.28 3.08 12.66L3.8 13.38C4.18 13.76 4.82 13.76 5.2 13.38L5.26 13.32C5.79 13.62 6.38 13.82 7 13.93V14C7 14.55 7.45 15 8 15S9 14.55 9 14V13.93C9.62 13.82 10.21 13.62 10.74 13.32L10.8 13.38C11.18 13.76 11.82 13.76 12.2 13.38L12.92 12.66C13.3 12.28 13.3 11.64 12.92 11.26L12.86 11.2C13.16 10.67 13.36 10.08 13.47 9.46H13.54C14.09 9.46 14.54 9.01 14.54 8.46V7.54C14.54 6.99 14.09 6.54 13.54 6.54H13.47C13.36 5.92 13.16 5.33 12.86 4.8L12.92 4.74C13.3 4.36 13.3 3.72 12.92 3.34L12.2 2.62C11.82 2.24 11.18 2.24 10.8 2.62L10.74 2.68C10.21 2.38 9.62 2.18 9 2.07V2C9 1.45 8.55 1 8 1ZM8 5.5C9.38 5.5 10.5 6.62 10.5 8S9.38 10.5 8 10.5S5.5 9.38 5.5 8S6.62 5.5 8 5.5Z"
+                fill="white"
+              />
+            </svg>
+          </button>
+          
+          {/* Settings panel */}
+          <FrequencySettingsPanel
+            isOpen={showFrequencySettings}
+            settings={frequencySettings}
+            onSettingsChange={setFrequencySettings}
+            onClose={() => setShowFrequencySettings(false)}
+            title="Frequency Spectrum"
+          />
         </div>
       )}
 
       {showSpectrogram && (
-        <div className="canvas-container" ref={!showFrequency ? canvasContainerRef : undefined}>
+        <div className="canvas-container" ref={!showFrequency ? canvasContainerRef : undefined} style={{ position: 'relative' }}>
           <canvas
             ref={spectrogramCanvasRef}
             width={canvasSize.width}
@@ -570,6 +767,44 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
           <div className="canvas-title-overlay">
             <h4>Spectrogram Waterfall</h4>
           </div>
+          
+          {/* Settings icon button */}
+          <button
+            onClick={() => setShowSpectrogramSettings(!showSpectrogramSettings)}
+            style={{
+              position: 'absolute',
+              top: '10px',
+              right: '10px',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '4px',
+              padding: '6px',
+              cursor: 'pointer',
+              width: '30px',
+              height: '30px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 10
+            }}
+            title="Settings"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M8 1C7.45 1 7 1.45 7 2V2.07C6.38 2.18 5.79 2.38 5.26 2.68L5.2 2.62C4.82 2.24 4.18 2.24 3.8 2.62L3.08 3.34C2.7 3.72 2.7 4.36 3.08 4.74L3.14 4.8C2.84 5.33 2.64 5.92 2.53 6.54H2.46C1.91 6.54 1.46 6.99 1.46 7.54V8.46C1.46 9.01 1.91 9.46 2.46 9.46H2.53C2.64 10.08 2.84 10.67 3.14 11.2L3.08 11.26C2.7 11.64 2.7 12.28 3.08 12.66L3.8 13.38C4.18 13.76 4.82 13.76 5.2 13.38L5.26 13.32C5.79 13.62 6.38 13.82 7 13.93V14C7 14.55 7.45 15 8 15S9 14.55 9 14V13.93C9.62 13.82 10.21 13.62 10.74 13.32L10.8 13.38C11.18 13.76 11.82 13.76 12.2 13.38L12.92 12.66C13.3 12.28 13.3 11.64 12.92 11.26L12.86 11.2C13.16 10.67 13.36 10.08 13.47 9.46H13.54C14.09 9.46 14.54 9.01 14.54 8.46V7.54C14.54 6.99 14.09 6.54 13.54 6.54H13.47C13.36 5.92 13.16 5.33 12.86 4.8L12.92 4.74C13.3 4.36 13.3 3.72 12.92 3.34L12.2 2.62C11.82 2.24 11.18 2.24 10.8 2.62L10.74 2.68C10.21 2.38 9.62 2.18 9 2.07V2C9 1.45 8.55 1 8 1ZM8 5.5C9.38 5.5 10.5 6.62 10.5 8S9.38 10.5 8 10.5S5.5 9.38 5.5 8S6.62 5.5 8 5.5Z"
+                fill="white"
+              />
+            </svg>
+          </button>
+          
+          {/* Settings panel */}
+          <FrequencySettingsPanel
+            isOpen={showSpectrogramSettings}
+            settings={spectrogramSettings}
+            onSettingsChange={setSpectrogramSettings}
+            onClose={() => setShowSpectrogramSettings(false)}
+            title="Spectrogram Waterfall"
+          />
         </div>
       )}
     </div>
