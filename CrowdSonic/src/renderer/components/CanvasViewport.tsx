@@ -72,23 +72,26 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     const rect = canvasContainer.getBoundingClientRect();
     const computedStyle = window.getComputedStyle(canvasContainer);
     
-    // Get actual padding and border values
-    const paddingLeft = parseFloat(computedStyle.paddingLeft);
-    const paddingRight = parseFloat(computedStyle.paddingRight);
-    const paddingTop = parseFloat(computedStyle.paddingTop);
-    const paddingBottom = parseFloat(computedStyle.paddingBottom);
+    // Get border values (we removed padding, but container still has border)
     const borderLeft = parseFloat(computedStyle.borderLeftWidth);
     const borderRight = parseFloat(computedStyle.borderRightWidth);
     const borderTop = parseFloat(computedStyle.borderTopWidth);
     const borderBottom = parseFloat(computedStyle.borderBottomWidth);
     
-    // Calculate available space minus padding, borders, and gap for title
-    const availableWidth = rect.width - paddingLeft - paddingRight;
-    const availableHeight = rect.height - paddingTop - paddingBottom - 32; // 32px for title + gap
+    // Canvas fills the entire container minus only the container borders
+    const availableWidth = rect.width - borderLeft - borderRight;
+    const availableHeight = rect.height - borderTop - borderBottom;
     
-    // Canvas also has its own border (2px total)
-    const width = Math.max(200, Math.floor(availableWidth - 2));
-    const height = Math.max(150, Math.floor(availableHeight - 2));
+    const width = Math.max(200, Math.floor(availableWidth));
+    const height = Math.max(150, Math.floor(availableHeight));
+    
+    // Debug logging to help diagnose canvas sizing
+    console.log('Canvas sizing debug:', {
+      containerRect: { width: rect.width, height: rect.height },
+      borders: { top: borderTop, bottom: borderBottom, left: borderLeft, right: borderRight },
+      availableSize: { width: availableWidth, height: availableHeight },
+      finalCanvasSize: { width, height }
+    });
     
     setCanvasSize({ width, height });
   }, []);
@@ -372,13 +375,8 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     }
   };
 
-  const getDisplayHeight = () => {
-    const totalViews = (showFrequency ? 1 : 0) + (showSpectrogram ? 1 : 0);
-    if (totalViews === 0) return 0;
-    return Math.floor((canvasSize.height - 16) / totalViews);
-  };
-
-  const displayHeight = getDisplayHeight();
+  // Canvas now fills the entire container, so use the full calculated height
+  const displayHeight = canvasSize.height;
 
   return (
     <div className="canvas-viewport" ref={containerRef}>
@@ -411,25 +409,29 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
 
       {showFrequency && (
         <div className="canvas-container" ref={canvasContainerRef}>
-          <h4>Frequency Spectrum</h4>
           <canvas
             ref={frequencyCanvasRef}
             width={canvasSize.width}
             height={displayHeight}
             className="visualization-canvas"
           />
+          <div className="canvas-title-overlay">
+            <h4>Frequency Spectrum</h4>
+          </div>
         </div>
       )}
 
       {showSpectrogram && (
         <div className="canvas-container" ref={!showFrequency ? canvasContainerRef : undefined}>
-          <h4>Spectrogram</h4>
           <canvas
             ref={spectrogramCanvasRef}
             width={canvasSize.width}
             height={displayHeight}
             className="visualization-canvas"
           />
+          <div className="canvas-title-overlay">
+            <h4>Spectrogram</h4>
+          </div>
         </div>
       )}
     </div>
