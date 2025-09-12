@@ -4,34 +4,7 @@
   padding: var(--spacing-sm);
   display: flex;
   flex-direction: column;
-  position: relative;
   flex-shrink: 0;
-  transition: height 0.3s ease-in-out;
-}
-
-.control-panel.collapsed {
-  height: 36px; /* Just enough for the toggle button */
-}
-
-.collapse-toggle {
-  position: absolute;
-  right: var(--spacing-md);
-  top: 50%;
-  transform: translateY(-50%);
-  background: var(--accent-primary);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: bold;
-  z-index: 10;
-  transition: background-color 0.2s ease;
-}
-
-.collapse-toggle:hover {
-  background: var(--accent-primary-hover);
 }
 
 .control-content {
@@ -41,13 +14,6 @@
   align-items: flex-start;
   overflow-x: auto;
   padding: var(--spacing-sm) 0;
-  transition: opacity 0.3s ease-in-out;
-}
-
-.control-content.hidden {
-  opacity: 0;
-  height: 0;
-  overflow: hidden;
 }
 
 .control-section {
@@ -116,9 +82,17 @@
   50% { opacity: 0.7; }
 }
 
-/* Visualization Stream Section */
+/* Streaming Section */
+.streaming-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  align-items: center;
+  text-align: center;
+}
+
 .stream-button {
-  padding: var(--spacing-xs) var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
   background: var(--accent-primary);
   color: white;
   border: none;
@@ -127,7 +101,11 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  min-width: 80px;
+  min-width: 200px;
+  max-width: 280px;
+  white-space: normal;
+  line-height: 1.3;
+  text-align: center;
 }
 
 .stream-button:hover:not(:disabled) {

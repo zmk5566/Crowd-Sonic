@@ -17,6 +17,7 @@ const App: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentDevice, setCurrentDevice] = useState<string>('');
   const [targetFps, setTargetFps] = useState(30); // Track user's FPS setting
+  const [hasRunningDevice, setHasRunningDevice] = useState(false);
   
   // View state
   const [showFrequency, setShowFrequency] = useState(true);
@@ -102,6 +103,10 @@ const App: React.FC = () => {
     console.log('App: Target FPS changed to:', fps);
   };
 
+  const handleDeviceStatusChange = (hasRunning: boolean) => {
+    setHasRunningDevice(hasRunning);
+  };
+
   return (
     <Layout>
       {/* Control Panel - Now horizontal at top */}
@@ -117,6 +122,7 @@ const App: React.FC = () => {
         onTestConnection={testConnection}
         onDeviceChange={handleDeviceChange}
         onFpsChange={handleFpsChange}
+        onDeviceStatusChange={handleDeviceStatusChange}
         currentDevice={currentDevice}
         targetFps={targetFps}
       />
@@ -132,6 +138,7 @@ const App: React.FC = () => {
           showSpectrogram={showSpectrogram}
           onStatusUpdate={setStatusData}
           currentDevice={currentDevice}
+          hasRunningDevice={hasRunningDevice}
         />
       </div>
 

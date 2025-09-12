@@ -10,6 +10,7 @@ interface CanvasViewportProps {
   showFrequency: boolean;
   showSpectrogram: boolean;
   currentDevice?: string;
+  hasRunningDevice: boolean;
   onStatusUpdate: (status: {
     fps: number;
     peakFreq: number;
@@ -25,6 +26,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   showFrequency,
   showSpectrogram,
   currentDevice,
+  hasRunningDevice,
   onStatusUpdate,
 }) => {
   const frequencyCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -341,11 +343,20 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
         </div>
       )}
 
-      {isConnected && !isPlaying && (
+      {isConnected && !isPlaying && !hasRunningDevice && (
+        <div className="viewport-overlay">
+          <div className="overlay-message">
+            <h3>Device Not Ready</h3>
+            <p>Please enable the device to get ready for streaming</p>
+          </div>
+        </div>
+      )}
+
+      {isConnected && !isPlaying && hasRunningDevice && (
         <div className="viewport-overlay">
           <div className="overlay-message">
             <h3>Ready</h3>
-            <p>Click Start to begin visualization</p>
+            <p>Click to begin visualization</p>
           </div>
         </div>
       )}

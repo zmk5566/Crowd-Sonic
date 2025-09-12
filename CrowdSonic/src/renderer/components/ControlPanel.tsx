@@ -24,6 +24,7 @@ interface ControlPanelProps {
   onTestConnection: () => void;
   onDeviceChange?: (deviceId: string) => void;
   onFpsChange?: (fps: number) => void;
+  onDeviceStatusChange?: (hasRunning: boolean) => void;
   currentDevice?: string;
   targetFps?: number;
 }
@@ -40,6 +41,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onTestConnection,
   onDeviceChange,
   onFpsChange,
+  onDeviceStatusChange,
   currentDevice,
   targetFps = 30,
 }) => {
@@ -47,7 +49,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [showServerManager, setShowServerManager] = useState(false);
   const [availableServers, setAvailableServers] = useState(serverStorageService.getServers());
 
@@ -74,6 +75,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       if (Array.isArray(deviceList)) {
         setDevices(deviceList);
         
+        // Check if any device is running and notify parent
+        const hasRunning = deviceList.some(d => d.status === "running");
+        if (onDeviceStatusChange) {
+          onDeviceStatusChange(hasRunning);
+        }
+        
         // Find active device (status === "running")
         const activeDevice = deviceList.find(d => d.status === "running");
         if (activeDevice) {
@@ -82,6 +89,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       } else {
         console.error('Device list is not an array:', deviceList);
         setDevices([]);
+        if (onDeviceStatusChange) {
+          onDeviceStatusChange(false);
+        }
       }
     } catch (error) {
       console.error('Failed to load devices:', error);
@@ -243,18 +253,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   };
 
   return (
-    <div className={`control-panel ${isCollapsed ? 'collapsed' : ''}`}>
-      {/* Collapse Toggle Button */}
-      <button 
-        className="collapse-toggle" 
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        title={isCollapsed ? "Expand Control Panel" : "Collapse Control Panel"}
-      >
-        {isCollapsed ? '▼' : '▲'}
-      </button>
-
+    <div className="control-panel">
       {/* Control Panel Content */}
-      <div className={`control-content ${isCollapsed ? 'hidden' : ''}`}>
+      <div className="control-content">
         <div className="control-section">
           <div className="connection-section">
             <div className="connection-status">
@@ -343,9 +344,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         <button
           className={`stream-button ${isPlaying ? 'streaming' : ''}`}
           onClick={onPlay}
-          disabled={!isConnected}
+          disabled={!isConnected || !devices.some(d => d.status === "running")}
         >
-          {isPlaying ? 'Streaming' : 'Stream'}
+          {isPlaying ? 'Stop Streaming' : 'Start Streaming'}
         </button>
       </div>
 
