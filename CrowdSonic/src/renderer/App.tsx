@@ -10,6 +10,7 @@ const App: React.FC = () => {
   const [baseUrl, setBaseUrl] = useState('http://localhost:8380');
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentDevice, setCurrentDevice] = useState<string>('');
+  const [targetFps, setTargetFps] = useState(30); // Track user's FPS setting
   
   // View state
   const [showFrequency, setShowFrequency] = useState(true);
@@ -44,21 +45,17 @@ const App: React.FC = () => {
   const handlePlay = async () => {
     try {
       if (isPlaying) {
-        // Stop current device if playing
-        if (currentDevice) {
-          await apiClient.stopDevice(currentDevice);
-        } else {
-          await apiClient.stop();
-        }
+        // Stop playback - just disconnect from stream, don't stop the device
+        console.log('Stopping playback (device remains running)');
       } else {
         // Configure optimal stream settings for current device
         if (currentDevice) {
           await apiClient.configureDeviceStream(currentDevice, {
             enable_adaptive_fps: false,  // Disable adaptive FPS
             enable_smart_skip: false,    // Disable smart skip
-            target_fps: 30               // Fixed 30 FPS
+            target_fps: targetFps        // Use user's FPS setting
           });
-          console.log('Stream configured for optimal performance');
+          console.log(`Stream configured with ${targetFps} FPS`);
         }
         // Note: Don't call start() here - device should already be started by the Start button
         // Just set playing state to trigger stream connection
@@ -80,6 +77,11 @@ const App: React.FC = () => {
     console.log('App: Current device changed to:', deviceId);
   };
 
+  const handleFpsChange = (fps: number) => {
+    setTargetFps(fps);
+    console.log('App: Target FPS changed to:', fps);
+  };
+
   return (
     <Layout>
       {/* Control Panel */}
@@ -96,7 +98,9 @@ const App: React.FC = () => {
         onSpectrogramToggle={setShowSpectrogram}
         onTestConnection={testConnection}
         onDeviceChange={handleDeviceChange}
+        onFpsChange={handleFpsChange}
         currentDevice={currentDevice}
+        targetFps={targetFps}
       />
 
       {/* Main Visualization Area */}

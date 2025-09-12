@@ -5,7 +5,9 @@ import './ControlPanel.css';
 interface AudioDevice {
   id: string;
   name: string;
-  is_active: boolean;
+  status: string;  // "available", "running", "stopped"
+  instance_state: string | null;  // null, "running", "stopped"
+  is_default: boolean;
 }
 
 interface ControlPanelProps {
@@ -21,7 +23,9 @@ interface ControlPanelProps {
   onSpectrogramToggle: (show: boolean) => void;
   onTestConnection: () => void;
   onDeviceChange?: (deviceId: string) => void;
+  onFpsChange?: (fps: number) => void;
   currentDevice?: string;
+  targetFps?: number;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -37,12 +41,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onSpectrogramToggle,
   onTestConnection,
   onDeviceChange,
+  onFpsChange,
   currentDevice,
+  targetFps = 30,
 }) => {
   const [urlInput, setUrlInput] = useState(baseUrl);
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
-  const [targetFps, setTargetFps] = useState(30);
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
 
   // Load available audio devices
@@ -58,8 +63,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       if (Array.isArray(deviceList)) {
         setDevices(deviceList);
         
-        // Find active device
-        const activeDevice = deviceList.find(d => d.is_active);
+        // Find active device (status === "running")
+        const activeDevice = deviceList.find(d => d.status === "running");
         if (activeDevice) {
           setSelectedDevice(activeDevice.id);
         }
@@ -100,20 +105,23 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       if (deviceToUse) {
         // Configure FPS for specific device
         await apiClient.configureDeviceStream(deviceToUse, { target_fps: fps });
-        setTargetFps(fps);
         console.log(`FPS changed to ${fps} for device: ${deviceToUse}`);
       } else {
         // Fallback to legacy global configuration
         await apiClient.configureStream({ target_fps: fps });
-        setTargetFps(fps);
         console.log('FPS changed to:', fps);
+      }
+      
+      // Update App's FPS state
+      if (onFpsChange) {
+        onFpsChange(fps);
       }
     } catch (error) {
       console.error('Failed to change FPS:', error);
     }
   };
 
-  // Handle start device
+  // Handle enable device
   const handleStartDevice = async () => {
     const deviceToUse = currentDevice || selectedDevice;
     if (!deviceToUse) {
@@ -123,7 +131,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
     try {
       await apiClient.startDevice(deviceToUse);
-      console.log(`Device started: ${deviceToUse}`);
+      console.log(`Device enabled: ${deviceToUse}`);
       
       // Wait a moment and check device status
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -138,11 +146,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       // Refresh device list to update status
       await loadDevices();
     } catch (error) {
-      console.error('Failed to start device:', error);
+      console.error('Failed to enable device:', error);
     }
   };
 
-  // Handle stop device
+  // Handle disable device
   const handleStopDevice = async () => {
     const deviceToUse = currentDevice || selectedDevice;
     if (!deviceToUse) {
@@ -152,11 +160,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
     try {
       await apiClient.stopDevice(deviceToUse);
-      console.log(`Device stopped: ${deviceToUse}`);
+      console.log(`Device disabled: ${deviceToUse}`);
       // Refresh device list to update status
       await loadDevices();
     } catch (error) {
-      console.error('Failed to stop device:', error);
+      console.error('Failed to disable device:', error);
     }
   };
 
@@ -211,13 +219,14 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               value={selectedDevice}
               onChange={(e) => handleDeviceChange(e.target.value)}
               disabled={isLoadingDevices || isPlaying}
+              title={isPlaying ? "Cannot change device during playback" : "Select audio device"}
             >
               <option value="">
                 {isLoadingDevices ? 'Loading devices...' : 'Select device...'}
               </option>
               {Array.isArray(devices) && devices.map((device) => (
                 <option key={device.id} value={device.id}>
-                  {device.name} {device.is_active ? '(Active)' : ''}
+                  {device.name} {device.status === "running" ? '(Running)' : device.status === "stopped" ? '(Stopped)' : '(Available)'}
                 </option>
               ))}
             </select>
@@ -231,23 +240,40 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 🔄 Refresh
               </button>
               
-              <button 
-                onClick={handleStartDevice} 
-                disabled={!selectedDevice || isLoadingDevices}
-                className="start-device-button"
-                title="Start selected device"
-              >
-                ▶️ Start
-              </button>
-              
-              <button 
-                onClick={handleStopDevice} 
-                disabled={!selectedDevice || isLoadingDevices}
-                className="stop-device-button"
-                title="Stop selected device"
-              >
-                ⏹️ Stop
-              </button>
+              {(() => {
+                const selectedDeviceObj = devices.find(d => d.id === selectedDevice);
+                const isDeviceActive = selectedDeviceObj?.status === "running";
+                
+                return (
+                  <>
+                    <button 
+                      onClick={handleStartDevice} 
+                      disabled={!selectedDevice || isLoadingDevices || isDeviceActive || isPlaying}
+                      className="start-device-button"
+                      title={
+                        isPlaying ? "Cannot enable device during playback" :
+                        isDeviceActive ? "Device already enabled" : 
+                        "Enable selected device"
+                      }
+                    >
+                      ✅ Enable
+                    </button>
+                    
+                    <button 
+                      onClick={handleStopDevice} 
+                      disabled={!selectedDevice || isLoadingDevices || !isDeviceActive || isPlaying}
+                      className="stop-device-button"
+                      title={
+                        isPlaying ? "Cannot disable device during playback" :
+                        !isDeviceActive ? "Device already disabled" : 
+                        "Disable selected device"
+                      }
+                    >
+                      ❌ Disable
+                    </button>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

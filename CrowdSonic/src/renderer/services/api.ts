@@ -263,30 +263,12 @@ export class APIClient {
   }
 
   /**
-   * Set active device by restarting with new device
+   * Set active device - just start the selected device without stopping others
+   * This is for cloud service where multiple devices can run simultaneously
    */
   async setDevice(deviceId: string): Promise<void> {
-    // For the new multi-device API architecture, we need to:
-    // 1. Stop all currently running devices
-    // 2. Start the new device
-    
     try {
-      // First, stop all devices
-      const stopResponse = await fetch(`${this.baseUrl}/api/system/stop-all`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!stopResponse.ok) {
-        console.warn('Failed to stop all devices, continuing anyway');
-      }
-
-      // Wait a moment for devices to stop
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Then start the specific device
+      // Just start the specific device - don't stop others (cloud service)
       const startResponse = await fetch(`${this.baseUrl}/api/devices/${deviceId}/start`, {
         method: 'POST',
         headers: {
@@ -297,6 +279,8 @@ export class APIClient {
       if (!startResponse.ok) {
         throw new Error(`Failed to start device: ${startResponse.statusText}`);
       }
+      
+      console.log(`Device ${deviceId} started successfully`);
     } catch (error) {
       throw new Error(`Failed to set device: ${error instanceof Error ? error.message : String(error)}`);
     }
