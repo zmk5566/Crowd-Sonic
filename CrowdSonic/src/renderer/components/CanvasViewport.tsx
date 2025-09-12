@@ -104,11 +104,14 @@ const FrequencySettingsPanel: React.FC<{
   };
 
   const handleApply = () => {
+    console.log('💥 Apply button clicked!', tempSettings, 'for', title);
     if (tempSettings.minFreqKHz < tempSettings.maxFreqKHz) {
       console.log('🟢 Applying settings:', tempSettings, 'for', title);
       onSettingsChange(tempSettings);
       initializedRef.current = false; // Allow re-initialization next time
       onClose();
+    } else {
+      console.log('❌ Apply failed - invalid range:', tempSettings);
     }
   };
 
@@ -386,13 +389,17 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   const onStatusUpdateRef = useRef(onStatusUpdate);
   const showFrequencyRef = useRef(showFrequency);
   const showSpectrogramRef = useRef(showSpectrogram);
+  const frequencySettingsRef = useRef(frequencySettings);
+  const spectrogramSettingsRef = useRef(spectrogramSettings);
   
   // Update refs when props change
   useEffect(() => {
     onStatusUpdateRef.current = onStatusUpdate;
     showFrequencyRef.current = showFrequency;
     showSpectrogramRef.current = showSpectrogram;
-  }, [onStatusUpdate, showFrequency, showSpectrogram]);
+    frequencySettingsRef.current = frequencySettings;
+    spectrogramSettingsRef.current = spectrogramSettings;
+  }, [onStatusUpdate, showFrequency, showSpectrogram, frequencySettings, spectrogramSettings]);
 
   // Handle incoming FFT data - no dependencies to avoid reconnection
   const handleFFTData = useCallback((frame: FFTFrame) => {
@@ -479,9 +486,10 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       const maxFreq = sampleRate / 2; // Nyquist frequency
       const freqStep = maxFreq / fftData.length;
       
-      // Constants for display (use dynamic frequency settings)
-      const MAX_FREQ_KHZ = frequencySettings.maxFreqKHz;
-      const MIN_FREQ_KHZ = frequencySettings.minFreqKHz;
+      // Constants for display (use dynamic frequency settings from ref)
+      const MAX_FREQ_KHZ = frequencySettingsRef.current.maxFreqKHz;
+      const MIN_FREQ_KHZ = frequencySettingsRef.current.minFreqKHz;
+      console.log('🎯 Rendering frequency spectrum with range:', MIN_FREQ_KHZ, '-', MAX_FREQ_KHZ, 'kHz');
       const MIN_DB = -100;
       const MAX_DB = 0;
       const PADDING = 40;
@@ -565,8 +573,9 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     const sampleRate = frame.sample_rate;
     const maxFreq = sampleRate / 2; // Nyquist frequency
     const freqStep = maxFreq / fftData.length;
-    const MAX_FREQ_KHZ = spectrogramSettings.maxFreqKHz;
-    const MIN_FREQ_KHZ = spectrogramSettings.minFreqKHz;
+    const MAX_FREQ_KHZ = spectrogramSettingsRef.current.maxFreqKHz;
+    const MIN_FREQ_KHZ = spectrogramSettingsRef.current.minFreqKHz;
+    console.log('🎯 Rendering spectrogram with range:', MIN_FREQ_KHZ, '-', MAX_FREQ_KHZ, 'kHz');
     const minFreqIndex = Math.max(0, Math.floor((MIN_FREQ_KHZ * 1000) / freqStep));
     const maxFreqIndex = Math.min(fftData.length, Math.floor((MAX_FREQ_KHZ * 1000) / freqStep));
     
