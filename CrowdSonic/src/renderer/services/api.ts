@@ -259,7 +259,15 @@ export class APIClient {
     }
 
     const data = await response.json();
-    return data.devices || []; // Extract devices array from response
+    
+    // Handle different possible response formats
+    if (Array.isArray(data)) {
+      return data;
+    } else if (data.devices && Array.isArray(data.devices)) {
+      return data.devices;
+    } else {
+      return [];
+    }
   }
 
   /**

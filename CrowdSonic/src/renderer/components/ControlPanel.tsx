@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { APIClient } from '../services/api';
+import { ServerManager } from './ServerManager';
+import { serverStorageService } from '../services/serverStorage';
 import './ControlPanel.css';
 
 interface AudioDevice {
@@ -46,7 +48,18 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const [selectedDevice, setSelectedDevice] = useState<string>('');
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [showServerManager, setShowServerManager] = useState(false);
+  const [availableServers, setAvailableServers] = useState(serverStorageService.getServers());
+
+  // Load available servers when component mounts
+  useEffect(() => {
+    setAvailableServers(serverStorageService.getServers());
+  }, []);
+
+  // Update URL input when baseUrl changes (e.g., from server selection)
+  useEffect(() => {
+    setUrlInput(baseUrl);
+  }, [baseUrl]);
 
   // Load available audio devices
   const loadDevices = async () => {
@@ -171,7 +184,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     }
   };
 
-  // Load devices when connected
+  // Load devices when connected or apiClient changes
   useEffect(() => {
     if (isConnected) {
       loadDevices();
@@ -179,30 +192,54 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       setDevices([]);
       setSelectedDevice('');
     }
-  }, [isConnected]);
+  }, [isConnected, apiClient]); // Add apiClient as dependency
 
-  const handleUrlSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onBaseUrlChange(urlInput);
-    setShowUrlInput(false); // Hide URL input after submit
+
+  // Handle server manager
+  const handleOpenServerManager = () => {
+    setShowServerManager(true);
   };
 
-  const handleConnectionClick = () => {
-    setShowUrlInput(!showUrlInput);
+  const handleCloseServerManager = () => {
+    setShowServerManager(false);
+    // Refresh server list when manager closes
+    setAvailableServers(serverStorageService.getServers());
   };
 
-  const handleQuickConnect = (url: string) => {
-    setUrlInput(url);
-    onBaseUrlChange(url);
-    setShowUrlInput(false);
+  const handleServerChange = (serverId: string) => {
+    const server = availableServers.find(s => s.id === serverId);
+    if (server) {
+      setUrlInput(server.url);
+      onBaseUrlChange(server.url);
+      // Refresh server list to reflect the change
+      setAvailableServers(serverStorageService.getServers());
+    }
+    setShowServerManager(false);
   };
 
   const getConnectionDisplayText = () => {
     if (!isConnected) return 'Disconnected';
-    if (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
-      return 'Localserver Connected';
+    
+    // Try to find the server name from storage
+    const server = serverStorageService.getServerByUrl(baseUrl);
+    if (server) {
+      return server.name;
     }
-    return 'Remote Connected';
+    
+    // Fallback to old logic - just show server identifier without "Connected"
+    if (baseUrl.includes('localhost')) {
+      return 'Local Server';
+    } else if (baseUrl.includes('127.0.0.1')) {
+      return 'Local IP';
+    }
+    
+    // For other URLs, try to extract hostname
+    try {
+      const url = new URL(baseUrl);
+      return url.hostname + (url.port ? `:${url.port}` : '');
+    } catch {
+      return 'Remote Server';
+    }
   };
 
   return (
@@ -219,59 +256,34 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       {/* Control Panel Content */}
       <div className={`control-content ${isCollapsed ? 'hidden' : ''}`}>
         <div className="control-section">
-          <div className="connection-dropdown">
-            <button 
-              className={`connection-button ${isConnected ? 'connected' : 'disconnected'}`}
-              onClick={handleConnectionClick}
-            >
+          <div className="connection-section">
+            <div className="connection-status">
               <div className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}></div>
-              <span>{getConnectionDisplayText()}</span>
-              <span className="dropdown-arrow">{showUrlInput ? '▲' : '▼'}</span>
+              <span className="connection-text">{getConnectionDisplayText()}</span>
+            </div>
+            <button 
+              className="manage-servers-button"
+              onClick={handleOpenServerManager}
+              title="管理服务器"
+            >
+              ⚙️ 编辑
             </button>
-            
-            {showUrlInput && (
-              <div className="connection-menu">
-                <button 
-                  className="quick-connect-button"
-                  onClick={() => handleQuickConnect('http://localhost:8380')}
-                >
-                  Local Server (localhost:8380)
-                </button>
-                <button 
-                  className="quick-connect-button"
-                  onClick={() => handleQuickConnect('http://127.0.0.1:8380')}
-                >
-                  Local IP (127.0.0.1:8380)
-                </button>
-                <div className="custom-url-section">
-                  <form onSubmit={handleUrlSubmit} className="url-form compact">
-                    <input
-                      id="base-url"
-                      type="url"
-                      value={urlInput}
-                      onChange={(e) => setUrlInput(e.target.value)}
-                      placeholder="Custom URL"
-                    />
-                    <button type="submit">Connect</button>
-                  </form>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
       {/* Audio Device Selection */}
       {isConnected && (
         <div className="control-section">
-          <div className="device-selection">
+          <div className="device-selection-compact">
             <select
               value={selectedDevice}
               onChange={(e) => handleDeviceChange(e.target.value)}
               disabled={isLoadingDevices || isPlaying}
               title={isPlaying ? "Cannot change device during visualization stream" : "Select audio device"}
+              className="device-select"
             >
               <option value="">
-                {isLoadingDevices ? 'Loading devices...' : 'Select device...'}
+                {isLoadingDevices ? 'Loading...' : `Device (${devices.length})`}
               </option>
               {Array.isArray(devices) && devices.map((device) => (
                 <option key={device.id} value={device.id}>
@@ -280,50 +292,49 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               ))}
             </select>
             
-            <div className="device-buttons">
-              <button 
-                onClick={loadDevices} 
-                disabled={isLoadingDevices}
-                className="refresh-button"
-              >
-                🔄 Refresh
-              </button>
+            <button 
+              onClick={loadDevices} 
+              disabled={isLoadingDevices}
+              className="refresh-button-compact"
+              title="Refresh devices"
+            >
+              🔄
+            </button>
+            
+            {(() => {
+              const selectedDeviceObj = devices.find(d => d.id === selectedDevice);
+              const isDeviceActive = selectedDeviceObj?.status === "running";
               
-              {(() => {
-                const selectedDeviceObj = devices.find(d => d.id === selectedDevice);
-                const isDeviceActive = selectedDeviceObj?.status === "running";
-                
-                return (
-                  <>
-                    <button 
-                      onClick={handleStartDevice} 
-                      disabled={!selectedDevice || isLoadingDevices || isDeviceActive || isPlaying}
-                      className="start-device-button"
-                      title={
-                        isPlaying ? "Cannot enable device during visualization stream" :
-                        isDeviceActive ? "Device already enabled" : 
-                        "Enable selected device"
-                      }
-                    >
-                      ✅ Enable
-                    </button>
-                    
-                    <button 
-                      onClick={handleStopDevice} 
-                      disabled={!selectedDevice || isLoadingDevices || !isDeviceActive || isPlaying}
-                      className="stop-device-button"
-                      title={
-                        isPlaying ? "Cannot disable device during visualization stream" :
-                        !isDeviceActive ? "Device already disabled" : 
-                        "Disable selected device"
-                      }
-                    >
-                      ❌ Disable
-                    </button>
-                  </>
-                );
-              })()}
-            </div>
+              return (
+                <>
+                  <button 
+                    onClick={handleStartDevice} 
+                    disabled={!selectedDevice || isLoadingDevices || isDeviceActive || isPlaying}
+                    className="start-device-button-compact"
+                    title={
+                      isPlaying ? "Cannot enable device during visualization stream" :
+                      isDeviceActive ? "Device already enabled" : 
+                      "Enable selected device"
+                    }
+                  >
+                    ✅
+                  </button>
+                  
+                  <button 
+                    onClick={handleStopDevice} 
+                    disabled={!selectedDevice || isLoadingDevices || !isDeviceActive || isPlaying}
+                    className="stop-device-button-compact"
+                    title={
+                      isPlaying ? "Cannot disable device during visualization stream" :
+                      !isDeviceActive ? "Device already disabled" : 
+                      "Disable selected device"
+                    }
+                  >
+                    ❌
+                  </button>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -339,6 +350,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       </div>
 
       </div>
+      
+      {/* Server Manager Modal */}
+      <ServerManager
+        isOpen={showServerManager}
+        onClose={handleCloseServerManager}
+        onServerChange={handleServerChange}
+      />
     </div>
   );
 };

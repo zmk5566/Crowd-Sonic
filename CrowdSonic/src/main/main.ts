@@ -67,6 +67,7 @@ const createWindow = (): void => {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      webSecurity: false, // Allow cross-origin requests for API connections
       preload: path.join(__dirname, 'preload.js')
     },
     titleBarStyle: 'hiddenInset',

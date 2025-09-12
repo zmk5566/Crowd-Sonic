@@ -5,10 +5,15 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { CanvasViewport } from './components/CanvasViewport';
 import { StatusBar } from './components/StatusBar';
 import { APIClient } from './services/api';
+import { serverStorageService } from './services/serverStorage';
 
 const App: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
-  const [baseUrl, setBaseUrl] = useState('http://localhost:8380');
+  const [baseUrl, setBaseUrl] = useState(() => {
+    // Initialize baseUrl from storage or default
+    const currentServer = serverStorageService.getCurrentServer();
+    return currentServer?.url || 'http://localhost:8380';
+  });
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentDevice, setCurrentDevice] = useState<string>('');
   const [targetFps, setTargetFps] = useState(30); // Track user's FPS setting
@@ -69,6 +74,20 @@ const App: React.FC = () => {
 
   const handleBaseUrlChange = (newUrl: string) => {
     setBaseUrl(newUrl);
+    
+    // Import server if it doesn't exist in storage
+    const existingServer = serverStorageService.getServerByUrl(newUrl);
+    if (!existingServer) {
+      const importedServer = serverStorageService.importServer(newUrl);
+      console.log('Imported new server:', importedServer);
+    }
+    
+    // Set as current server if it exists
+    const server = serverStorageService.getServerByUrl(newUrl);
+    if (server) {
+      serverStorageService.setCurrentServer(server.id);
+    }
+    
     // Re-test connection with new URL
     testConnection();
   };
