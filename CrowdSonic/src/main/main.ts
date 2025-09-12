@@ -12,7 +12,7 @@ const startCompiledBackend = (): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
       // Path to the compiled headless_ultrasonic executable
-      const backendPath = path.join(__dirname, '..', 'resources', 'headless_ultrasonic', 'headless_ultrasonic');
+      const backendPath = path.join(process.resourcesPath, 'headless_ultrasonic', 'headless_ultrasonic');
       const workingDir = path.dirname(backendPath);
       
       console.log('Starting compiled backend from:', backendPath);
@@ -96,6 +96,7 @@ const createWindow = (): void => {
     width: 1200,
     minWidth: 800,
     minHeight: 600,
+    icon: path.join(__dirname, '..', 'build', 'icons', 'png', '512x512.png'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

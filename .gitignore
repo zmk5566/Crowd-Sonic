@@ -7,3 +7,5 @@ CLAUDE.md
 /headless_ultrasonic/build
 /headless_ultrasonic/resources/_internal
 /CrowdSonic/resources/headless_ultrasonic/_internal
+/CrowdSonic/release
+/CrowdSonic/build

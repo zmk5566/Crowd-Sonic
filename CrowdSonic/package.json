@@ -16,7 +16,8 @@
     "dev": "webpack --mode=development --watch",
     "electron:dev": "NODE_ENV=development electron .",
     "dist": "electron-builder",
-    "clean": "rm -rf dist/"
+    "clean": "rm -rf dist/",
+    "icon": "electron-icon-maker --input=build/icon.png --output=build"
   },
   "keywords": [
     "ultrasonic",
@@ -31,6 +32,8 @@
     "@types/node": "^24.3.1",
     "css-loader": "^7.1.2",
     "electron": "^38.1.0",
+    "electron-builder": "^26.0.12",
+    "electron-icon-maker": "^0.0.5",
     "html-webpack-plugin": "^5.6.4",
     "style-loader": "^4.0.0",
     "ts-loader": "^9.5.4",
@@ -45,5 +48,36 @@
     "pako": "^2.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
+  },
+  "build": {
+    "appId": "com.crowdsonic.app",
+    "productName": "CrowdSonic",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "resources/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/headless_ultrasonic",
+        "to": "headless_ultrasonic",
+        "filter": ["**/*"]
+      }
+    ],
+    "mac": {
+      "icon": "build/icons/mac/icon.icns",
+      "extendInfo": {
+        "CFBundleIconName": "icon",
+        "CFBundleIconFile": "icon.icns"
+      }
+    },
+    "win": {
+      "icon": "build/icons/win/icon.ico"
+    },
+    "linux": {
+      "icon": "build/icons/png/512x512.png"
+    }
   }
 }
