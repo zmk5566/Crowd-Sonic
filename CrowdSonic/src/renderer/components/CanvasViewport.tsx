@@ -42,6 +42,11 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   // Canvas dimensions
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 400 });
 
+  // Waterfall spectrogram state - using useRef to avoid re-renders
+  const waterfallDataRef = useRef<number[][]>([]);
+  const [waterfallHeight] = useState(200); // Number of time slices to keep
+  const waterfallFreqBinsRef = useRef(0);
+
   // Decompress FFT data from compressed base64 format
   const decompressFFTData = useCallback((compressedData: string): Float32Array | null => {
     try {
@@ -175,10 +180,10 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       renderFrequencySpectrum(frequencyCanvasRef.current, frame);
     }
 
-    // Skip spectrogram rendering for now to improve performance
-    // if (showSpectrogramRef.current && spectrogramCanvasRef.current) {
-    //   renderSpectrogram(spectrogramCanvasRef.current, frame);
-    // }
+    // Render spectrogram waterfall
+    if (showSpectrogramRef.current && spectrogramCanvasRef.current) {
+      renderSpectrogram(spectrogramCanvasRef.current, frame);
+    }
   }, []); // Empty dependency array!
 
   // Connect/disconnect from data stream
@@ -299,23 +304,98 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     drawFrequencyLabels(ctx, width, height);
   };
 
-  // Render spectrogram (placeholder)
+  // Render spectrogram waterfall
   const renderSpectrogram = (canvas: HTMLCanvasElement, frame: FFTFrame) => {
+    console.log('renderSpectrogram called', { width: canvas.width, height: canvas.height, sequenceId: frame.sequence_id });
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      console.error('Failed to get canvas context');
+      return;
+    }
 
     const { width, height } = canvas;
     
+    // Decompress FFT data
+    const fftData = decompressFFTData(frame.data_compressed);
+    if (!fftData || fftData.length === 0) {
+      console.error('Failed to decompress FFT data or empty data');
+      return;
+    }
+    console.log('FFT data decompressed', { length: fftData.length, sampleData: fftData.slice(0, 5) });
+
+    // Calculate frequency parameters
+    const sampleRate = frame.sample_rate;
+    const maxFreq = sampleRate / 2; // Nyquist frequency
+    const freqStep = maxFreq / fftData.length;
+    const MAX_FREQ_KHZ = 100; // Display up to 100kHz
+    const maxFreqIndex = Math.min(fftData.length, Math.floor((MAX_FREQ_KHZ * 1000) / freqStep));
+    
+    // Initialize or resize waterfall data if needed
+    if (waterfallDataRef.current.length === 0 || waterfallFreqBinsRef.current !== maxFreqIndex) {
+      console.log('Initializing waterfall data', { waterfallHeight, maxFreqIndex, currentLength: waterfallDataRef.current.length });
+      waterfallDataRef.current = Array(waterfallHeight).fill(null).map(() => 
+        Array(maxFreqIndex).fill(-100) // Initialize with -100dB
+      );
+      waterfallFreqBinsRef.current = maxFreqIndex;
+      console.log('Waterfall data initialized');
+      return; // Skip this frame while initializing
+    }
+
+    // Update waterfall data: scroll up and add new data at bottom
+    // Move old data up
+    for (let i = 1; i < waterfallHeight; i++) {
+      waterfallDataRef.current[i - 1] = waterfallDataRef.current[i];
+    }
+    // Add new data at the bottom
+    waterfallDataRef.current[waterfallHeight - 1] = Array.from(fftData.slice(0, maxFreqIndex));
+
+    // Constants for rendering
+    const PADDING = 40;
+    const PLOT_WIDTH = width - 2 * PADDING;
+    const PLOT_HEIGHT = height - 2 * PADDING;
+    const MIN_DB = -100;
+    const MAX_DB = 0;
+
     // Clear canvas
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, height);
 
-    // Draw placeholder text
-    ctx.fillStyle = '#666666';
-    ctx.font = '16px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('Spectrogram View', width / 2, height / 2);
-    ctx.fillText('(Coming Soon)', width / 2, height / 2 + 24);
+    // Create ImageData for efficient pixel manipulation
+    const imageData = ctx.createImageData(PLOT_WIDTH, PLOT_HEIGHT);
+    const pixels = imageData.data;
+
+    // Render waterfall as pixels
+    for (let y = 0; y < PLOT_HEIGHT; y++) {
+      const timeIndex = Math.floor((y / PLOT_HEIGHT) * waterfallHeight);
+      if (timeIndex >= 0 && timeIndex < waterfallDataRef.current.length) {
+        for (let x = 0; x < PLOT_WIDTH; x++) {
+          const freqIndex = Math.floor((x / PLOT_WIDTH) * maxFreqIndex);
+          if (freqIndex >= 0 && freqIndex < waterfallDataRef.current[timeIndex].length) {
+            const dbValue = waterfallDataRef.current[timeIndex][freqIndex];
+            
+            // Normalize dB value to 0-1 range
+            const normalizedValue = Math.max(0, Math.min(1, (dbValue - MIN_DB) / (MAX_DB - MIN_DB)));
+            
+            // Apply viridis-like colormap
+            const [r, g, b] = viridisColormap(normalizedValue);
+            
+            // Set pixel values
+            const pixelIndex = (y * PLOT_WIDTH + x) * 4;
+            pixels[pixelIndex] = r;     // Red
+            pixels[pixelIndex + 1] = g; // Green
+            pixels[pixelIndex + 2] = b; // Blue
+            pixels[pixelIndex + 3] = 255; // Alpha
+          }
+        }
+      }
+    }
+
+    // Draw the image data
+    ctx.putImageData(imageData, PADDING, PADDING);
+    console.log('Spectrogram image drawn', { imageWidth: PLOT_WIDTH, imageHeight: PLOT_HEIGHT });
+
+    // Draw frequency and time labels
+    drawSpectrogramLabels(ctx, width, height, MAX_FREQ_KHZ);
   };
 
   // Draw grid helper (professional style)
@@ -375,9 +455,67 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     }
   };
 
+  // Draw spectrogram labels (frequency on X-axis, time on Y-axis)
+  const drawSpectrogramLabels = (ctx: CanvasRenderingContext2D, width: number, height: number, maxFreqKhz: number) => {
+    const PADDING = 40;
+    const PLOT_WIDTH = width - 2 * PADDING;
+    const PLOT_HEIGHT = height - 2 * PADDING;
+    
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.font = '12px Arial';
+    
+    // X-axis labels (frequency)
+    ctx.textAlign = 'center';
+    for (let i = 0; i <= 10; i++) {
+      const x = PADDING + (i / 10) * PLOT_WIDTH;
+      const freq = (i / 10) * maxFreqKhz;
+      ctx.fillText(`${freq.toFixed(0)}k`, x, height - 10);
+    }
+    
+    // Y-axis labels (time - newer at bottom, older at top)
+    ctx.textAlign = 'right';
+    ctx.fillText('New', PADDING - 10, PADDING + PLOT_HEIGHT - 5);
+    ctx.fillText('Old', PADDING - 10, PADDING + 15);
+  };
+
+  // Viridis-like colormap function (simplified)
+  const viridisColormap = (value: number): [number, number, number] => {
+    // Clamp value to 0-1 range
+    const t = Math.max(0, Math.min(1, value));
+    
+    // Simplified viridis approximation
+    let r, g, b;
+    
+    if (t < 0.25) {
+      const local_t = t / 0.25;
+      r = Math.floor(68 + local_t * (59 - 68));
+      g = Math.floor(1 + local_t * (82 - 1));
+      b = Math.floor(84 + local_t * (140 - 84));
+    } else if (t < 0.5) {
+      const local_t = (t - 0.25) / 0.25;
+      r = Math.floor(59 + local_t * (33 - 59));
+      g = Math.floor(82 + local_t * (144 - 82));
+      b = Math.floor(140 + local_t * (140 - 140));
+    } else if (t < 0.75) {
+      const local_t = (t - 0.5) / 0.25;
+      r = Math.floor(33 + local_t * (94 - 33));
+      g = Math.floor(144 + local_t * (201 - 144));
+      b = Math.floor(140 + local_t * (98 - 140));
+    } else {
+      const local_t = (t - 0.75) / 0.25;
+      r = Math.floor(94 + local_t * (253 - 94));
+      g = Math.floor(201 + local_t * (231 - 201));
+      b = Math.floor(98 + local_t * (37 - 98));
+    }
+    
+    return [r, g, b];
+  };
+
   // Canvas now fills the entire container, so use the full calculated height
   const displayHeight = canvasSize.height;
 
+  console.log('CanvasViewport render', { showFrequency, showSpectrogram, isConnected, isPlaying, hasRunningDevice });
+  
   return (
     <div className="canvas-viewport" ref={containerRef}>
       {!isConnected && (
@@ -430,7 +568,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
             className="visualization-canvas"
           />
           <div className="canvas-title-overlay">
-            <h4>Spectrogram</h4>
+            <h4>Spectrogram Waterfall</h4>
           </div>
         </div>
       )}

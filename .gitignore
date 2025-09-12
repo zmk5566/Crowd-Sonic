@@ -3,3 +3,5 @@
 CLAUDE.md
 /CrowdSonic/node_modules
 /CrowdSonic/dist
+/headless_ultrasonic/dist
+/headless_ultrasonic/build
