@@ -219,7 +219,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               value={selectedDevice}
               onChange={(e) => handleDeviceChange(e.target.value)}
               disabled={isLoadingDevices || isPlaying}
-              title={isPlaying ? "Cannot change device during playback" : "Select audio device"}
+              title={isPlaying ? "Cannot change device during visualization stream" : "Select audio device"}
             >
               <option value="">
                 {isLoadingDevices ? 'Loading devices...' : 'Select device...'}
@@ -251,7 +251,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                       disabled={!selectedDevice || isLoadingDevices || isDeviceActive || isPlaying}
                       className="start-device-button"
                       title={
-                        isPlaying ? "Cannot enable device during playback" :
+                        isPlaying ? "Cannot enable device during visualization stream" :
                         isDeviceActive ? "Device already enabled" : 
                         "Enable selected device"
                       }
@@ -264,7 +264,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                       disabled={!selectedDevice || isLoadingDevices || !isDeviceActive || isPlaying}
                       className="stop-device-button"
                       title={
-                        isPlaying ? "Cannot disable device during playback" :
+                        isPlaying ? "Cannot disable device during visualization stream" :
                         !isDeviceActive ? "Device already disabled" : 
                         "Disable selected device"
                       }
@@ -280,9 +280,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       )}
 
       <div className="control-section">
-        <h3>Playback</h3>
+        <h3>Visualization Stream</h3>
         
-        <div className="playback-controls">
+        <div className="stream-controls">
           <button
             className={`play-button ${isPlaying ? 'playing' : ''}`}
             onClick={onPlay}

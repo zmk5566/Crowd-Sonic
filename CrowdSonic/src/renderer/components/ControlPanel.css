@@ -58,8 +58,8 @@
   flex: 1;
 }
 
-/* Playback Section */
-.playback-controls {
+/* Visualization Stream Section */
+.stream-controls {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);

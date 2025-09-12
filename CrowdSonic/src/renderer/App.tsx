@@ -45,8 +45,8 @@ const App: React.FC = () => {
   const handlePlay = async () => {
     try {
       if (isPlaying) {
-        // Stop playback - just disconnect from stream, don't stop the device
-        console.log('Stopping playback (device remains running)');
+        // Stop visualization stream - just disconnect from stream, don't stop the device
+        console.log('Stopping visualization stream (device remains running)');
       } else {
         // Configure optimal stream settings for current device
         if (currentDevice) {
