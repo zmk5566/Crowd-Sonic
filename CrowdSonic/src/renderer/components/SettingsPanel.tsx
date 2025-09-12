@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './SettingsPanel.css';
 
 interface SettingsPanelProps {
@@ -22,11 +22,38 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onSpectrogramToggle,
   onFpsChange,
 }) => {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
   return (
-    <div className="settings-panel">
-      {/* Display Options */}
-      <div className="panel-section">
-        <div className="section-title">Display</div>
+    <div className={`settings-panel ${isCollapsed ? 'collapsed' : ''}`}>
+      {/* Toggle Button - always visible on the left side */}
+      <button 
+        className="toggle-button"
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        title={isCollapsed ? "Expand Settings" : "Collapse Settings"}
+      >
+        <svg 
+          width="16" 
+          height="16" 
+          viewBox="0 0 16 16" 
+          fill="none"
+          style={{ transform: isCollapsed ? "rotate(-90deg)" : "rotate(90deg)" }}
+        >
+          <path 
+            d="M4 6L8 10L12 6"
+            stroke="currentColor" 
+            strokeWidth="1.5" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+
+      {/* Collapsible Content */}
+      <div className="panel-content">
+        {/* Display Options */}
+        <div className="panel-section">
+          <div className="section-title">Display</div>
         <div className="display-options">
           <label className="checkbox-label">
             <input
@@ -81,6 +108,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

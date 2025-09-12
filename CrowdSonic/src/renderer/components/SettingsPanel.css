@@ -10,6 +10,46 @@
   z-index: 1000;
   min-width: 200px;
   max-width: 250px;
+  transition: transform 0.3s ease;
+}
+
+.settings-panel.collapsed {
+  transform: translateX(calc(100% - 20px)); /* Show only the toggle button */
+}
+
+.toggle-button {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 60px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px 0 0 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.toggle-button:hover {
+  background: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
+}
+
+
+.panel-content {
+  transition: opacity 0.2s ease;
+  padding-left: 32px; /* Make room for toggle button */
+}
+
+.settings-panel.collapsed .panel-content {
+  display: none; /* Completely hide to save space */
 }
 
 .panel-section {
@@ -107,4 +147,19 @@
 .fps-presets button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .settings-panel {
+    bottom: calc(32px + var(--spacing-sm));
+    right: var(--spacing-sm);
+    min-width: 180px;
+    max-width: 220px;
+  }
+  
+  .settings-panel.collapsed {
+    transform: translateX(calc(100% - 16px));
+    min-height: 50px;
+  }
 }
