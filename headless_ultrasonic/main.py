@@ -134,7 +134,9 @@ async def startup_event():
         processing_task = asyncio.create_task(data_processing_loop())
         
         logger.info("所有组件初始化完成")
-        logger.info(f"服务器将监听: http://{Config.HOST}:{Config.PORT}")
+        display_host = "localhost" if Config.HOST == "0.0.0.0" else Config.HOST
+        logger.info(f"服务器将监听: http://{display_host}:{Config.PORT}")
+        logger.info(f"实际绑定地址: {Config.HOST}:{Config.PORT}")
         logger.info("API端点:")
         logger.info("  === 新架构API ===")
         logger.info("  GET  /api/system/status           - 系统整体状态")
