@@ -11,3 +11,5 @@ CLAUDE.md
 /CrowdSonic/build
 /headless_ultrasonic/build_test_venv
 /headless_ultrasonic/build_linux_amd64
+/headless_ultrasonic/build_onefile_amd64
+/CrowdSonic/resources
