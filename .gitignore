@@ -8,4 +8,8 @@ CLAUDE.md
 /headless_ultrasonic/resources/_internal
 /CrowdSonic/resources/headless_ultrasonic/_internal
 /CrowdSonic/release
-/CrowdSonic/build
+/CrowdSonic/build/*
+!/CrowdSonic/build/icons
+!/CrowdSonic/build/icon.png
+!/CrowdSonic/build/icon_1280.png
+/CrowdSonic/build/icons/.DS_Store
