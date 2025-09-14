@@ -123,21 +123,19 @@ CrowdSonic seamlessly integrates with the headless_ultrasonic backend:
 ## 🗺 Roadmap
 
 ### Immediate Goals
-- [ ] Windows and Linux releases
+- [x] Windows and Linux releases
 - [ ] Enhanced visualization options and controls
 - [ ] Data export functionality
 - [ ] Settings persistence
 
 ### Medium-term Goals
 - [ ] Multi-language support (Chinese, English, Danish)
-- [ ] Custom themes and layouts
-- [ ] Remote device management
-- [ ] Plugin system
 
 ### Long-term Vision
 - [ ] Mobile companion app (React Native)
 - [ ] Cloud data synchronization
-- [ ] Advanced data analysis tools
+- [ ] Advanced data analysis tools (Machine learning enhanced)
+- [ ] Data recording/retrival
 - [ ] Team collaboration features
 
 ## 🤝 Contributing
