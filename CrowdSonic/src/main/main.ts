@@ -12,6 +12,7 @@ const startCompiledBackend = (): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
       // Path to the compiled headless_ultrasonic executable
+      // The correct backend is selected during build time
       const backendPath = path.join(process.resourcesPath, 'headless_ultrasonic', 'headless_ultrasonic');
       const workingDir = path.dirname(backendPath);
       

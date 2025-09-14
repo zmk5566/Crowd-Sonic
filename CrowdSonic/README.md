@@ -1,152 +1,164 @@
 # CrowdSonic 🎵
 
-**Professional Ultrasonic Visualizer** - Transform headless_ultrasonic into a professional Electron application
+**Professional Ultrasonic Visualizer** - Real-time visualization tool for ultrasonic data analysis
+
+CrowdSonic is a cross-platform desktop application built with Electron that transforms ultrasonic data into intuitive real-time visualizations. It provides a professional-grade interface for connecting to headless_ultrasonic backends and displaying spectrum and spectrogram data in real-time.
+
+## ✨ Key Features
+
+### 🎯 Core Capabilities
+- **Real-time Data Visualization** - Supports both frequency spectrum and spectrogram display modes
+- **Professional Dark Theme** - Reduces eye strain during extended analysis sessions
+- **Cross-platform Support** - Available for Windows, macOS, and Linux
+- **Smart Connection Management** - Automatically manages local backend processes and supports remote connections
+- **Live Status Monitoring** - Real-time display of FPS, peak frequency, amplitude, and data rates
+- **Zero-config Setup** - Built-in headless_ultrasonic backend for immediate use
+
+### 🔧 Technical Stack
+- **Frontend**: React + TypeScript + Canvas API
+- **Desktop Framework**: Electron with secure IPC
+- **Backend**: Python FastAPI (headless_ultrasonic)
+- **Communication**: HTTP REST + Server-Sent Events (SSE)
+- **Build System**: Webpack + TypeScript
+
+## 📥 Download & Installation
+
+**Get the latest version now!**
+
+Visit the [Releases page](../../releases) to download the installer for your platform:
+
+### macOS
+- **Apple Silicon (M1/M2/M3)**: `CrowdSonic-1.0.0-arm64.dmg`
+- **Intel Processors**: `CrowdSonic-1.0.0-intel64.dmg`
+- **Universal Build**: `CrowdSonic-1.0.0-mac.zip`
+
+### Windows
+- `CrowdSonic-1.0.0-win.exe` (Coming Soon)
+
+### Linux
+- `CrowdSonic-1.0.0-linux.AppImage` (Coming Soon)
+
+> 💡 **Tip**: Simply download and run - no additional dependencies or configuration required!
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Node.js 18+ 
-- Python 3.11+ (for backend)
-- The `headless_ultrasonic` backend running
+### For End Users
+1. Download the appropriate installer from [Releases](../../releases)
+2. Install and launch CrowdSonic
+3. The app will automatically start the built-in ultrasonic detection backend
+4. Start visualizing ultrasonic data in real-time!
 
-### Development
+### For Developers
 
+#### Prerequisites
+- Node.js 18+
+- Python 3.11+ (for backend development)
+
+#### Development Setup
 ```bash
+# Clone the repository
+git clone https://github.com/your-repo/Simple-UAC-Visualizer.git
+cd Simple-UAC-Visualizer/CrowdSonic
+
 # Install dependencies
 npm install
 
-# Build the application
-npm run build:dev
-
-# Start the application
-npm start
-
-# Development mode (watch for changes)
+# Development mode (with file watching)
 npm run dev
 # In another terminal:
 npm run electron:dev
+
+# Or build and run
+npm run build:dev
+npm start
 ```
 
-## ✨ Features
+#### Building Releases
+```bash
+# Build production version
+npm run build
 
-### Current Implementation (Phase 1)
-- ✅ **Professional Dark UI** - Modern, clean interface inspired by professional audio tools
-- ✅ **Real-time Connection Management** - Connect to local or remote headless_ultrasonic servers
-- ✅ **Dual Visualization Support** - Toggle between Frequency Spectrum and Spectrogram views
-- ✅ **Live Status Monitoring** - FPS, peak frequency, amplitude, and data rate tracking
-- ✅ **Python Backend Integration** - Automatic management of headless_ultrasonic subprocess
-- ✅ **Cross-platform Support** - Built with Electron for Windows, macOS, and Linux
-
-### Architecture
-```
-CrowdSonic/
-├── src/
-│   ├── main/           # Electron main process
-│   │   ├── main.ts     # App entry point + Python subprocess management
-│   │   └── preload.ts  # Secure renderer communication
-│   └── renderer/       # React frontend
-│       ├── components/ # UI components (Layout, ControlPanel, Canvas, StatusBar)
-│       ├── services/   # API client for backend communication
-│       └── styles/     # Professional dark theme CSS
-├── public/
-│   └── index.html      # Base HTML template
-└── dist/              # Built application
+# Create distributable packages
+npm run dist                    # Current platform
+npm run dist:mac-universal      # macOS Universal
+npm run dist:mac-intel          # macOS Intel
+npm run dist:mac-arm            # macOS Apple Silicon
 ```
 
-### Technical Stack
-- **Frontend**: React + TypeScript + Canvas API
-- **Desktop**: Electron with secure IPC
-- **Backend**: Python FastAPI (headless_ultrasonic)
-- **Communication**: HTTP REST + Server-Sent Events (SSE)
-- **Build**: Webpack + TypeScript
+## 📸 What You'll See
 
-## 🎯 Roadmap
+CrowdSonic provides an intuitive real-time data visualization interface:
 
-### Phase 2: Enhanced Visualization
-- [ ] Advanced Canvas rendering with optimized spectrum display
-- [ ] Real-time spectrogram with scrolling waterfall
-- [ ] Multiple chart types and display options
-- [ ] Zoom and pan controls for detailed analysis
+- **Spectrum Analyzer** - Real-time frequency distribution display
+- **Spectrogram View** - Waterfall-style time-frequency visualization
+- **Status Dashboard** - Live system performance metrics
+- **Connection Manager** - Easy switching between local and remote backends
 
-### Phase 3: Internationalization
-- [ ] i18next integration
-- [ ] Support for English, Chinese (中文), and Danish (Dansk)
-- [ ] Language switcher in settings
+## 🛠 Feature Deep Dive
 
-### Phase 4: Advanced Features
-- [ ] Remote device management
+### Data Visualization
+- **Dual Display Modes**: Seamlessly switch between spectrum analysis and spectrogram views
+- **Real-time Rendering**: High-performance Canvas-based real-time rendering
+- **Adaptive Scaling**: Automatic range adjustment for optimal visual clarity
+
+### Connection Management
+- **Local-first**: Automatically launches and manages local Python backend
+- **Remote Connectivity**: Connect to any headless_ultrasonic instance
+- **Health Monitoring**: Continuous backend connection status monitoring
+
+### User Experience
+- **Professional Interface**: Inspired by professional audio software design principles
+- **Instant Feedback**: Real-time visual feedback for all operations
+- **Information Density**: Maximum data visibility in minimal space
+
+## 🔄 Backend Integration
+
+CrowdSonic seamlessly integrates with the headless_ultrasonic backend:
+
+- **Zero-modification Integration**: Uses existing API endpoints without backend changes
+- **SSE Streaming**: Real-time data via `/api/stream` endpoint
+- **Process Management**: Automatic backend startup, monitoring, and shutdown
+- **Error Recovery**: Smart reconnection and error handling mechanisms
+
+## 🗺 Roadmap
+
+### Immediate Goals
+- [ ] Windows and Linux releases
+- [ ] Enhanced visualization options and controls
+- [ ] Data export functionality
 - [ ] Settings persistence
-- [ ] Data export capabilities
+
+### Medium-term Goals
+- [ ] Multi-language support (Chinese, English, Danish)
 - [ ] Custom themes and layouts
+- [ ] Remote device management
+- [ ] Plugin system
 
-### Phase 5: Mobile Support
-- [ ] React Native companion app
-- [ ] Cross-platform component sharing
-- [ ] iOS and Android viewers
+### Long-term Vision
+- [ ] Mobile companion app (React Native)
+- [ ] Cloud data synchronization
+- [ ] Advanced data analysis tools
+- [ ] Team collaboration features
 
-## 🔧 Development
+## 🤝 Contributing
 
-### Project Structure
+We welcome community contributions! To get started:
 
-```
-└── CrowdSonic/
-    ├── Backend Communication    # Python subprocess + HTTP/SSE
-    ├── Professional UI         # Dark theme, status bars, controls
-    ├── Canvas Visualization     # Real-time frequency/spectrogram display
-    ├── Connection Management    # Local/remote backend switching
-    └── Cross-platform Support  # Electron + future React Native
-```
-
-### Backend Integration
-
-CrowdSonic automatically manages the Python backend:
-
-1. **Startup**: Launches `headless_ultrasonic` as subprocess
-2. **Connection**: Tests health endpoint (`/api/health`)
-3. **Communication**: Uses existing REST API + SSE streams
-4. **Shutdown**: Gracefully terminates Python process
-
-### Available Scripts
-
-```bash
-npm run build       # Production build
-npm run build:dev   # Development build
-npm run start       # Start Electron app
-npm run dev         # Watch mode for development
-npm run clean       # Clean build directory
-npm run dist        # Create distributable package (future)
-```
-
-## 🤝 Integration with headless_ultrasonic
-
-CrowdSonic is designed to work seamlessly with the existing `headless_ultrasonic` backend:
-
-- **Zero Backend Changes**: Uses existing API endpoints
-- **SSE Streaming**: Connects to `/api/stream` for real-time data
-- **Remote Capable**: Can connect to any headless_ultrasonic instance
-- **Local First**: Automatically starts local backend if available
-
-## 📦 Building for Distribution
-
-*Coming in Phase 4*
-
-```bash
-npm run dist
-```
-
-## 🎨 Design Philosophy
-
-CrowdSonic follows professional audio software design principles:
-
-- **Dark Theme**: Reduces eye strain during long analysis sessions
-- **Information Density**: Maximum data in minimal space
-- **Real-time Feedback**: Immediate visual feedback for all operations
-- **Professional Layout**: Familiar layout for audio engineers and researchers
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ## 📄 License
 
-MIT License - See [LICENSE](LICENSE) for details
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 📞 Support & Feedback
+
+- **Issues**: [GitHub Issues](../../issues)
+- **Discussions**: [GitHub Discussions](../../discussions)
 
 ---
 
-**CrowdSonic** - Transforming ultrasonic visualization from headless to professional 🎵
+**CrowdSonic** - Making ultrasonic data visible and understandable 🎵

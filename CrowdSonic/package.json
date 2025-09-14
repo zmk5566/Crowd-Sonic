@@ -16,6 +16,11 @@
     "dev": "webpack --mode=development --watch",
     "electron:dev": "NODE_ENV=development electron .",
     "dist": "electron-builder",
+    "dist:mac-universal": "npm run dist:mac-arm && npm run dist:mac-intel",
+    "dist:mac-intel": "npm run pre-build:intel && electron-builder --mac --x64 && npm run post-build:intel",
+    "pre-build:intel": "cp -r resources/headless_ultrasonic resources/headless_ultrasonic_backup && rm -rf resources/headless_ultrasonic && cp -r resources/headless_ultrasonic_intel resources/headless_ultrasonic && mv resources/headless_ultrasonic/headless_ultrasonic_intel resources/headless_ultrasonic/headless_ultrasonic",
+    "post-build:intel": "rm -rf resources/headless_ultrasonic && mv resources/headless_ultrasonic_backup resources/headless_ultrasonic",
+    "dist:mac-arm": "cross-env BACKEND_ARCH=arm electron-builder --mac --arm64",
     "clean": "rm -rf dist/",
     "icon": "electron-icon-maker --input=build/icon.png --output=build"
   },
@@ -30,6 +35,7 @@
   ],
   "devDependencies": {
     "@types/node": "^24.3.1",
+    "cross-env": "^10.0.0",
     "css-loader": "^7.1.2",
     "electron": "^38.1.0",
     "electron-builder": "^26.0.12",
@@ -69,6 +75,22 @@
     "mac": {
       "icon": "build/icons/mac/icon.icns",
       "identity": "-",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
       "extendInfo": {
         "CFBundleIconName": "icon",
         "CFBundleIconFile": "icon.icns"
